@@ -1,0 +1,24 @@
+@import "tailwindcss";
+
+@theme {
+  --color-primary: #8E9775;
+  --color-primary-dark: #4A5D23;
+  --color-accent: #E28413;
+  --color-background-zen: #FDFCF8;
+  --color-surface-zen: #F4F2EB;
+  --color-text-main: #23281B;
+  --color-text-secondary: #6B705C;
+  --color-success-zen: #5B8C5A;
+  --color-error-zen: #BC4749;
+  --color-warning-zen: #DDA15E;
+}
+
+@layer base {
+  body {
+    @apply bg-background-zen text-text-main font-sans;
+  }
+  
+  h1, h2, h3, h4, h5, h6 {
+    @apply text-primary-dark;
+  }
+}

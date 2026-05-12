@@ -1,0 +1,27 @@
+[tool.poetry]
+name = "truckflow-backend"
+version = "0.1.0"
+description = "Offline-First F&B POS Backend"
+authors = ["Your Name <your.email@example.com>"]
+readme = "README.md"
+packages = [{include = "src"}]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+fastapi = "0.104.1"
+uvicorn = "0.24.0"
+sqlalchemy = ">=2.0.40"
+psycopg = { version = ">=3.2", extras = ["binary"] }
+pydantic = "2.5.2"
+pydantic-settings = "2.1.0"
+celery = "5.3.6"
+redis = "5.0.1"
+python-dotenv = "1.1.0"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^9.0.3"
+httpx = "^0.28.1"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

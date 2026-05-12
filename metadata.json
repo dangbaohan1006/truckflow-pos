@@ -1,0 +1,6 @@
+{
+  "name": "TruckFlow POS",
+  "description": "High-reliability, offline-first Food Truck POS & ERP system with modular monolith architecture and transactional outbox pattern.",
+  "requestFramePermissions": [],
+  "majorCapabilities": []
+}
