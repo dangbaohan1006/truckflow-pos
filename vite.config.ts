@@ -26,5 +26,20 @@ export default defineConfig(({mode}) => {
       // Do not modifyâfile watching is disabled to prevent flickering during agent edits.
       hmr: process.env.DISABLE_HMR !== 'true',
     },
+    build: {
+      chunkSizeWarningLimit: 1000,
+      rollupOptions: {
+        output: {
+          manualChunks(id) {
+            if (id.includes('node_modules')) {
+              if (id.includes('react') || id.includes('react-dom')) return 'vendor-react';
+              if (id.includes('@nozbe/watermelondb')) return 'vendor-watermelondb';
+              if (id.includes('zustand') || id.includes('rxjs')) return 'vendor-state';
+              return 'vendor';
+            }
+          }
+        }
+      }
+    },
   };
 });
