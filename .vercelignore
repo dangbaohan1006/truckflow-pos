@@ -1,0 +1,6 @@
+# Exclude backend from Vercel deployments to force frontend-only builds
+backend/
+backend/**
+**/pyproject.toml
+**/Dockerfile
+**/backend/**
