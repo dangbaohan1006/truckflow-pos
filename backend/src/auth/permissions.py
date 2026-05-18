@@ -1,0 +1,171 @@
+"""
+Backend Permission Definitions.
+
+Mirrors the frontend permission system so the backend can
+embed permissions in JWT tokens and enforce RBAC.
+"""
+
+# ===== Permission Definitions =====
+PERMISSIONS = {
+    # User Management
+    "USER_CREATE": "user:create",
+    "USER_EDIT": "user:edit",
+    "USER_DELETE": "user:delete",
+    "USER_VIEW": "user:view",
+    "USER_ASSIGN_ROLE": "user:assign_role",
+    # Settings
+    "SETTINGS_STORE": "settings:store",
+    "SETTINGS_PRINTER": "settings:printer",
+    "SETTINGS_SYNC": "settings:sync",
+    "SETTINGS_TEMPLATE": "settings:template",
+    "SETTINGS_INGREDIENT": "settings:ingredient",
+    # Sales
+    "SALES_CREATE": "sales:create",
+    "SALES_EDIT": "sales:edit",
+    "SALES_CANCEL": "sales:cancel",
+    "SALES_PAYMENT": "sales:payment",
+    "SALES_REFUND": "sales:refund",
+    "SALES_PRINT": "sales:print",
+    "SALES_VIEW": "sales:view",
+    "SALES_VIEW_ALL": "sales:view_all",
+    # Inventory
+    "INV_RECEIVE": "inventory:receive",
+    "INV_ISSUE": "inventory:issue",
+    "INV_COUNT": "inventory:count",
+    "INV_ADJUST": "inventory:adjust",
+    "INV_SPOILAGE": "inventory:spoilage",
+    "INV_APPROVE": "inventory:approve",
+    "INV_VIEW": "inventory:view",
+    "INV_BOM": "inventory:bom",
+    "INV_SUPPLIER": "inventory:supplier",
+    "INV_TRUCK": "inventory:truck",
+    # Finance
+    "FIN_INCOME": "finance:income",
+    "FIN_EXPENSE": "finance:expense",
+    "FIN_APPROVE": "finance:approve",
+    "FIN_BOOK": "finance:book",
+    "FIN_LOCK": "finance:lock",
+    "FIN_VIEW": "finance:view",
+    # HR
+    "HR_EMPLOYEE": "hr:employee",
+    "HR_ATTENDANCE": "hr:attendance",
+    "HR_ADVANCE": "hr:advance",
+    "HR_SALARY": "hr:salary",
+    "HR_APPROVE_SALARY": "hr:approve_salary",
+    "HR_VIEW": "hr:view",
+    # Reports
+    "REPORT_VIEW": "report:view",
+    "REPORT_EXPORT": "report:export",
+    # System
+    "SYSTEM_ADMIN": "system:admin",
+}
+
+# ===== Role Definitions =====
+ROLES = {
+    "SYSTEM_ADMIN": "SYSTEM_ADMIN",
+    "STORE_MANAGER": "STORE_MANAGER",
+    "CASHIER": "CASHIER",
+    "WAREHOUSE": "WAREHOUSE",
+    "HR": "HR",
+    "ACCOUNTANT": "ACCOUNTANT",
+    "REPORT_VIEWER": "REPORT_VIEWER",
+    "STAFF": "STAFF",
+}
+
+# ===== Role -> Permission Mapping =====
+ROLE_PERMISSIONS = {
+    "SYSTEM_ADMIN": list(PERMISSIONS.values()),
+    "STORE_MANAGER": [
+        PERMISSIONS["SALES_CREATE"],
+        PERMISSIONS["SALES_EDIT"],
+        PERMISSIONS["SALES_CANCEL"],
+        PERMISSIONS["SALES_PAYMENT"],
+        PERMISSIONS["SALES_REFUND"],
+        PERMISSIONS["SALES_PRINT"],
+        PERMISSIONS["SALES_VIEW"],
+        PERMISSIONS["SALES_VIEW_ALL"],
+        PERMISSIONS["INV_RECEIVE"],
+        PERMISSIONS["INV_ISSUE"],
+        PERMISSIONS["INV_COUNT"],
+        PERMISSIONS["INV_ADJUST"],
+        PERMISSIONS["INV_SPOILAGE"],
+        PERMISSIONS["INV_APPROVE"],
+        PERMISSIONS["INV_VIEW"],
+        PERMISSIONS["INV_BOM"],
+        PERMISSIONS["INV_SUPPLIER"],
+        PERMISSIONS["INV_TRUCK"],
+        PERMISSIONS["FIN_INCOME"],
+        PERMISSIONS["FIN_EXPENSE"],
+        PERMISSIONS["FIN_APPROVE"],
+        PERMISSIONS["FIN_BOOK"],
+        PERMISSIONS["FIN_VIEW"],
+        PERMISSIONS["HR_EMPLOYEE"],
+        PERMISSIONS["HR_ATTENDANCE"],
+        PERMISSIONS["HR_ADVANCE"],
+        PERMISSIONS["HR_SALARY"],
+        PERMISSIONS["HR_APPROVE_SALARY"],
+        PERMISSIONS["HR_VIEW"],
+        PERMISSIONS["REPORT_VIEW"],
+        PERMISSIONS["REPORT_EXPORT"],
+        PERMISSIONS["SETTINGS_STORE"],
+        PERMISSIONS["SETTINGS_PRINTER"],
+        PERMISSIONS["SETTINGS_SYNC"],
+        PERMISSIONS["SETTINGS_TEMPLATE"],
+        PERMISSIONS["SETTINGS_INGREDIENT"],
+    ],
+    "CASHIER": [
+        PERMISSIONS["SALES_CREATE"],
+        PERMISSIONS["SALES_EDIT"],
+        PERMISSIONS["SALES_PAYMENT"],
+        PERMISSIONS["SALES_PRINT"],
+        PERMISSIONS["SALES_VIEW"],
+        PERMISSIONS["INV_VIEW"],
+    ],
+    "WAREHOUSE": [
+        PERMISSIONS["INV_RECEIVE"],
+        PERMISSIONS["INV_ISSUE"],
+        PERMISSIONS["INV_COUNT"],
+        PERMISSIONS["INV_SPOILAGE"],
+        PERMISSIONS["INV_VIEW"],
+        PERMISSIONS["INV_BOM"],
+        PERMISSIONS["INV_SUPPLIER"],
+        PERMISSIONS["INV_TRUCK"],
+        PERMISSIONS["SETTINGS_INGREDIENT"],
+    ],
+    "HR": [
+        PERMISSIONS["HR_EMPLOYEE"],
+        PERMISSIONS["HR_ATTENDANCE"],
+        PERMISSIONS["HR_ADVANCE"],
+        PERMISSIONS["HR_SALARY"],
+        PERMISSIONS["HR_APPROVE_SALARY"],
+        PERMISSIONS["HR_VIEW"],
+        PERMISSIONS["REPORT_VIEW"],
+        PERMISSIONS["REPORT_EXPORT"],
+    ],
+    "ACCOUNTANT": [
+        PERMISSIONS["FIN_INCOME"],
+        PERMISSIONS["FIN_EXPENSE"],
+        PERMISSIONS["FIN_APPROVE"],
+        PERMISSIONS["FIN_BOOK"],
+        PERMISSIONS["FIN_LOCK"],
+        PERMISSIONS["FIN_VIEW"],
+        PERMISSIONS["REPORT_VIEW"],
+        PERMISSIONS["REPORT_EXPORT"],
+        PERMISSIONS["SALES_VIEW"],
+        PERMISSIONS["SALES_VIEW_ALL"],
+        PERMISSIONS["INV_VIEW"],
+    ],
+    "REPORT_VIEWER": [
+        PERMISSIONS["REPORT_VIEW"],
+        PERMISSIONS["REPORT_EXPORT"],
+        PERMISSIONS["SALES_VIEW"],
+        PERMISSIONS["INV_VIEW"],
+        PERMISSIONS["FIN_VIEW"],
+        PERMISSIONS["HR_VIEW"],
+    ],
+    "STAFF": [
+        PERMISSIONS["SALES_CREATE"],
+        PERMISSIONS["SALES_VIEW"],
+        PERMISSIONS["INV_VIEW"],
+    ],
+}

@@ -8,8 +8,10 @@ import { database } from '../database/index.js';
 import Transaction from '../database/models/Transaction.js';
 import { formatCurrency, formatDateTime, generateId } from '../shared/utils.js';
 import { Modal, Input, Select, StatCard, TabButton } from '../shared/components.js';
+import { useToast } from '../shared/ToastContext.js';
 
 export default function Finance() {
+  const toast = useToast();
   const [transactions, setTransactions] = useState<any[]>([]);
   const [activeTab, setActiveTab] = useState('overview');
   const [showAdd, setShowAdd] = useState(false);
@@ -62,6 +64,8 @@ export default function Finance() {
     });
     setShowAdd(false);
     setFormData({ type: 'INCOME', amount: '', category: '', note: '', paymentMethod: 'cash' });
+    const label = formData.type === 'INCOME' ? 'Khoản thu' : 'Khoản chi';
+    toast.success(`Đã ghi sổ ${label.toLowerCase()} - ${formData.category}: ${formatCurrency(parseFloat(formData.amount))}`);
   };
 
   const incomeCategories = ['Bán hàng', 'Thu khác', 'Hoàn trả', 'Đầu tư'];

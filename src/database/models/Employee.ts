@@ -9,6 +9,8 @@ export default class Employee extends Model {
   @text('role') role!: string;
   @text('salary') salary!: string;
   @text('status') status!: string;
+  @text('department') department!: string;
+  @text('truck_id') truckId!: string;
   @readonly @field('created_at') createdAt!: number;
   @readonly @field('updated_at') updatedAt!: number;
 }

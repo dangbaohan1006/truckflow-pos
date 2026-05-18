@@ -32,8 +32,14 @@ services:
       - REDIS_URL=redis://redis:6379/0
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      # JWT Configuration
+      - JWT_ACCESS_TTL_MINUTES=15
+      - JWT_REFRESH_TTL_DAYS=30
+      - JWT_PRIVATE_KEY_PATH=/app/secrets/jwt_private.pem
+      - JWT_PUBLIC_KEY_PATH=/app/secrets/jwt_public.pem
     volumes:
       - .:/app
+      - jwt_secrets:/app/secrets
     depends_on:
       - db
       - redis
@@ -58,3 +64,4 @@ services:
 
 volumes:
   postgres_data:
+  jwt_secrets:

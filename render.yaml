@@ -1,0 +1,47 @@
+# Render service template (example)
+# Use this as a starting point when creating services on Render.
+# Replace placeholders or create secrets in the Render dashboard and link them to the services.
+
+services:
+  - type: web
+    name: truckflow-api
+    env: docker
+    region: oregon
+    plan: free
+    dockerfilePath: backend/Dockerfile
+    buildCommand: null
+    startCommand: uvicorn src.main:app --host 0.0.0.0 --port 8000
+    envVars:
+      - key: DATABASE_URL
+        fromEnvironment: DATABASE_URL
+      - key: REDIS_URL
+        fromEnvironment: REDIS_URL
+      - key: CELERY_BROKER_URL
+        fromEnvironment: CELERY_BROKER_URL
+      - key: CELERY_RESULT_BACKEND
+        fromEnvironment: CELERY_RESULT_BACKEND
+      - key: JWT_ACCESS_TTL_MINUTES
+        value: "15"
+      - key: JWT_REFRESH_TTL_DAYS
+        value: "30"
+
+  - type: worker
+    name: truckflow-worker
+    env: docker
+    region: oregon
+    plan: free
+    dockerfilePath: backend/Dockerfile
+    startCommand: celery -A src.worker.celery_app worker --loglevel=info
+    envVars:
+      - key: DATABASE_URL
+        fromEnvironment: DATABASE_URL
+      - key: REDIS_URL
+        fromEnvironment: REDIS_URL
+      - key: CELERY_BROKER_URL
+        fromEnvironment: CELERY_BROKER_URL
+      - key: CELERY_RESULT_BACKEND
+        fromEnvironment: CELERY_RESULT_BACKEND
+
+# Notes:
+# - Create secrets in the Render dashboard for DATABASE_URL, REDIS_URL, CELERY_*, and add them to both services.
+# - Mount JWT key pair via Render's "Files" or Secrets; update JWT_PRIVATE_KEY_PATH/JWT_PUBLIC_KEY_PATH env vars accordingly.

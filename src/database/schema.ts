@@ -20,6 +20,8 @@ export const schema = appSchema({
         { name: 'price', type: 'string' },
         { name: 'category', type: 'string' },
         { name: 'is_raw_material', type: 'boolean' },
+        { name: 'location_type', type: 'string' }, // MAIN_WAREHOUSE, TRUCK
+        { name: 'truck_id', type: 'string' }, // which truck this item belongs to (if location_type=TRUCK)
         { name: 'created_at', type: 'number' },
         { name: 'updated_at', type: 'number', isIndexed: true },
       ],
@@ -146,6 +148,8 @@ export const schema = appSchema({
         { name: 'role', type: 'string' },
         { name: 'salary', type: 'string' },
         { name: 'status', type: 'string' }, // ACTIVE, INACTIVE
+        { name: 'department', type: 'string' },
+        { name: 'truck_id', type: 'string' },
         { name: 'created_at', type: 'number' },
         { name: 'updated_at', type: 'number', isIndexed: true },
       ],
@@ -172,6 +176,35 @@ export const schema = appSchema({
         { name: 'amount', type: 'string' },
         { name: 'note', type: 'string' },
         { name: 'date', type: 'number' },
+        { name: 'created_at', type: 'number' },
+        { name: 'updated_at', type: 'number', isIndexed: true },
+      ],
+    }),
+    // ===== Menu Items (Menu Configuration) =====
+    tableSchema({
+      name: 'menu_items',
+      columns: [
+        { name: 'name', type: 'string' },
+        { name: 'price', type: 'string' },
+        { name: 'category', type: 'string' },
+        { name: 'unit', type: 'string' },
+        { name: 'default_discount', type: 'string' },
+        { name: 'discount_start', type: 'number' },
+        { name: 'discount_end', type: 'number' },
+        { name: 'is_active', type: 'boolean' },
+        { name: 'created_at', type: 'number' },
+        { name: 'updated_at', type: 'number', isIndexed: true },
+      ],
+    }),
+    // ===== Menu Item Ingredients (BOM for menu items) =====
+    tableSchema({
+      name: 'menu_ingredients',
+      columns: [
+        { name: 'menu_item_id', type: 'string', isIndexed: true },
+        { name: 'material_id', type: 'string', isIndexed: true },
+        { name: 'material_name', type: 'string' },
+        { name: 'quantity', type: 'string' },
+        { name: 'unit', type: 'string' },
         { name: 'created_at', type: 'number' },
         { name: 'updated_at', type: 'number', isIndexed: true },
       ],

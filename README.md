@@ -18,3 +18,6 @@ View your app in AI Studio: https://ai.studio/apps/3a90a9b0-7b44-48ab-a500-aa05c
 2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
 3. Run the app:
    `npm run dev`
+
+
+backend: uvicorn src.main:app --reload

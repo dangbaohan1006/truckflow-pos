@@ -3,18 +3,26 @@ import { motion } from 'motion/react';
 import {
   ShoppingCart, Search, Plus, Minus, Trash2, X, Check,
   CreditCard, Printer, FileText, Percent, Banknote, QrCode,
-  Store,
+  Store, Truck as TruckIcon, AlertTriangle, Package, Utensils,
 } from 'lucide-react';
 import { database } from '../database/index.js';
+import MenuItem from '../database/models/MenuItem.js';
+import MenuIngredient from '../database/models/MenuIngredient.js';
 import InventoryItem from '../database/models/InventoryItem.js';
 import SalesOrder from '../database/models/SalesOrder.js';
 import SalesOrderLine from '../database/models/SalesOrderLine.js';
 import StockMovement from '../database/models/StockMovement.js';
+import TruckModel from '../database/models/Truck.js';
 import { formatCurrency, formatDateTime, generateId } from '../shared/utils.js';
 import { Modal, Input } from '../shared/components.js';
+import { useToast } from '../shared/ToastContext.js';
 
 export default function POS() {
-  const [items, setItems] = useState<any[]>([]);
+  const toast = useToast();
+  const [menuItems, setMenuItems] = useState<any[]>([]);
+  const [menuIngredients, setMenuIngredients] = useState<any[]>([]);
+  const [inventoryItems, setInventoryItems] = useState<any[]>([]);
+  const [trucks, setTrucks] = useState<any[]>([]);
   const [cart, setCart] = useState<any[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
@@ -25,50 +33,55 @@ export default function POS() {
   const [note, setNote] = useState('');
   const [showReceipt, setShowReceipt] = useState(false);
   const [lastOrder, setLastOrder] = useState<any>(null);
-  const [activeTab, setActiveTab] = useState<'products' | 'materials'>('products');
+  const [selectedTruck, setSelectedTruck] = useState('');
 
   useEffect(() => {
-    const sub = database.get<InventoryItem>('inventory_items').query().observe().subscribe(setItems);
-    return () => sub.unsubscribe();
+    const sub1 = database.get<MenuItem>('menu_items').query().observe().subscribe(setMenuItems);
+    const sub2 = database.get<MenuIngredient>('menu_ingredients').query().observe().subscribe(setMenuIngredients);
+    const sub3 = database.get<InventoryItem>('inventory_items').query().observe().subscribe(setInventoryItems);
+    const sub4 = database.get<TruckModel>('trucks').query().observe().subscribe(setTrucks);
+    return () => { sub1.unsubscribe(); sub2.unsubscribe(); sub3.unsubscribe(); sub4.unsubscribe(); };
   }, []);
 
+  // Only show active menu items
+  const activeMenuItems = useMemo(() => menuItems.filter((i: any) => i.isActive !== false), [menuItems]);
+
   const categories = useMemo(() => {
-    const cats = new Set(items.filter((i: any) => i.category).map((i: any) => i.category));
+    const cats = new Set(activeMenuItems.filter((i: any) => i.category).map((i: any) => i.category));
     return ['all', ...Array.from(cats)];
-  }, [items]);
+  }, [activeMenuItems]);
 
   const filteredItems = useMemo(() => {
-    return items.filter((item: any) => {
-      if (activeTab === 'materials' && !item.isRawMaterial) return false;
-      if (activeTab === 'products' && item.isRawMaterial) return false;
+    return activeMenuItems.filter((item: any) => {
       if (selectedCategory !== 'all' && item.category !== selectedCategory) return false;
       if (searchTerm && !item.name.toLowerCase().includes(searchTerm.toLowerCase())) return false;
       return true;
     });
-  }, [items, searchTerm, selectedCategory, activeTab]);
+  }, [activeMenuItems, searchTerm, selectedCategory]);
 
   const addToCart = (item: any) => {
-    const existing = cart.find((c: any) => c.productId === item.id);
+    const existing = cart.find((c: any) => c.menuItemId === item.id);
     if (existing) {
-      setCart(cart.map((c: any) => c.productId === item.id ? { ...c, qty: c.qty + 1 } : c));
+      setCart(cart.map((c: any) => c.menuItemId === item.id ? { ...c, qty: c.qty + 1 } : c));
     } else {
       setCart([...cart, {
-        id: generateId(), productId: item.id, productName: item.name,
-        price: parseFloat(item.price || item.reorderLevel || '0'), qty: 1,
+        id: generateId(), menuItemId: item.id, productName: item.name,
+        price: parseFloat(item.price || '0'), qty: 1,
+        defaultDiscount: parseFloat(item.defaultDiscount || '0'),
       }]);
     }
   };
 
-  const updateQty = (productId: string, delta: number) => {
+  const updateQty = (menuItemId: string, delta: number) => {
     setCart(cart.map((c: any) => {
-      if (c.productId !== productId) return c;
+      if (c.menuItemId !== menuItemId) return c;
       const newQty = Math.max(0, c.qty + delta);
       return { ...c, qty: newQty };
     }).filter((c: any) => c.qty > 0));
   };
 
-  const removeFromCart = (productId: string) => {
-    setCart(cart.filter((c: any) => c.productId !== productId));
+  const removeFromCart = (menuItemId: string) => {
+    setCart(cart.filter((c: any) => c.menuItemId !== menuItemId));
   };
 
   const subtotal = useMemo(() => cart.reduce((acc: number, curr: any) => acc + (curr.price * curr.qty), 0), [cart]);
@@ -81,6 +94,36 @@ export default function POS() {
     const cashRec = parseFloat(cashReceived) || 0;
     const change = paymentMethod === 'cash' ? Math.max(0, cashRec - total) : 0;
 
+    // Check ingredients (BOM) for each menu item in cart
+    const missingMaterials: string[] = [];
+
+    // Determine which inventory to check: if a truck is selected, check truck inventory
+    const truckInv = selectedTruck
+      ? inventoryItems.filter((i: any) => i.locationType === 'TRUCK' && i.truckId === selectedTruck)
+      : inventoryItems;
+
+    for (const cartItem of cart) {
+      const ingredients = menuIngredients.filter((ing: any) => ing.menuItemId === cartItem.menuItemId);
+      for (const ing of ingredients) {
+        const neededQty = parseFloat(ing.quantity) * cartItem.qty;
+        // Check in truck inventory first, then main warehouse
+        let material = truckInv.find((i: any) => i.id === ing.materialId);
+        if (!material) {
+          material = inventoryItems.find((i: any) => i.id === ing.materialId);
+        }
+        if (material && parseFloat(material.quantity) < neededQty) {
+          missingMaterials.push(`${ing.materialName} (cần ${neededQty} ${ing.unit}, tồn ${material.quantity} ${material.unit})`);
+        } else if (!material) {
+          missingMaterials.push(`${ing.materialName} (cần ${neededQty} ${ing.unit}, không có trong kho)`);
+        }
+      }
+    }
+
+    if (missingMaterials.length > 0) {
+      toast.warning(`Thiếu nguyên liệu:\n${missingMaterials.join('\n')}`, 6000);
+      return;
+    }
+
     await database.write(async () => {
       await database.get<SalesOrder>('pos_order').create((o: any) => {
         o._raw.id = orderId;
@@ -91,15 +134,16 @@ export default function POS() {
         o.changeAmount = change.toFixed(2);
         o.discount = discount;
         o.note = note;
-        o.truckId = 'TRUCK-001';
+        o.truckId = selectedTruck || 'TRUCK-001';
         o.createdAt = now;
         o.updatedAt = now;
       });
+
       for (const item of cart) {
         await database.get<SalesOrderLine>('pos_order_line').create((line: any) => {
           line._raw.id = generateId();
           line.orderId = orderId;
-          line.productId = item.productId;
+          line.productId = item.menuItemId;
           line.productName = item.productName;
           line.quantity = item.qty.toString();
           line.price = item.price.toFixed(2);
@@ -107,14 +151,26 @@ export default function POS() {
           line.createdAt = now;
           line.updatedAt = now;
         });
-        const invItem = items.find((i: any) => i.id === item.productId);
-        if (invItem) {
-          const newQty = Math.max(0, parseFloat(invItem.quantity) - item.qty);
-          await invItem.update((i: any) => { i.quantity = newQty.toString(); });
+
+        // Deduct ingredients (materials) from truck inventory
+        const ingredients = menuIngredients.filter((ing: any) => ing.menuItemId === item.menuItemId);
+        for (const ing of ingredients) {
+          const neededQty = parseFloat(ing.quantity) * item.qty;
+          let matItem = selectedTruck
+            ? inventoryItems.find((i: any) => i.id === ing.materialId && i.locationType === 'TRUCK' && i.truckId === selectedTruck)
+            : null;
+          if (!matItem) {
+            matItem = inventoryItems.find((i: any) => i.id === ing.materialId);
+          }
+          if (matItem) {
+            const newMatQty = Math.max(0, parseFloat(matItem.quantity) - neededQty);
+            await matItem.update((i: any) => { i.quantity = newMatQty.toString(); });
+          }
         }
+
         await database.get<StockMovement>('stock_movements').create((m: any) => {
           m._raw.id = generateId();
-          m.itemId = item.productId;
+          m.itemId = item.menuItemId;
           m.itemName = item.productName;
           m.quantity = (-item.qty).toString();
           m.type = 'SALE';
@@ -125,6 +181,7 @@ export default function POS() {
         });
       }
     });
+
     setLastOrder({ id: orderId, items: cart, total, paymentMethod, cashReceived: cashRec, change, discount, note, date: now });
     setCart([]);
     setCashReceived('');
@@ -132,6 +189,7 @@ export default function POS() {
     setNote('');
     setShowPayment(false);
     setShowReceipt(true);
+    toast.success(`Thanh toán thành công! Mã đơn: ${orderId.slice(-8).toUpperCase()}`, 4000);
   };
 
   const printReceipt = () => {
@@ -173,16 +231,17 @@ export default function POS() {
         <div className="flex space-x-3">
           <div className="flex-1 relative">
             <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary" />
-            <input type="text" placeholder="Tìm kiếm sản phẩm..." value={searchTerm}
+            <input type="text" placeholder="Tìm kiếm món..." value={searchTerm}
               onChange={(e: any) => setSearchTerm(e.target.value)}
               className="w-full pl-10 pr-4 py-2.5 bg-white border border-surface-zen rounded-lg focus:ring-2 focus:ring-primary/30 outline-none" />
           </div>
-          <div className="flex space-x-1 bg-surface-zen rounded-lg p-1">
-            <button onClick={() => setActiveTab('products')}
-              className={`px-3 py-2 rounded-md text-sm font-medium transition-all ${activeTab === 'products' ? 'bg-white shadow-sm text-primary-dark' : 'text-text-secondary'}`}>Sản phẩm</button>
-            <button onClick={() => setActiveTab('materials')}
-              className={`px-3 py-2 rounded-md text-sm font-medium transition-all ${activeTab === 'materials' ? 'bg-white shadow-sm text-primary-dark' : 'text-text-secondary'}`}>Nguyên liệu</button>
-          </div>
+          <select value={selectedTruck} onChange={(e: any) => setSelectedTruck(e.target.value)}
+            className="px-3 py-2 border border-surface-zen rounded-lg text-sm bg-white outline-none">
+            <option value="">Kho tổng</option>
+            {trucks.filter((t: any) => t.status === 'ACTIVE').map((t: any) => (
+              <option key={t.id} value={t.id}>{t.name} ({t.code})</option>
+            ))}
+          </select>
         </div>
         <div className="flex space-x-2 overflow-x-auto pb-2">
           {categories.map((cat: string) => (
@@ -197,14 +256,20 @@ export default function POS() {
             {filteredItems.map((item: any) => (
               <motion.button whileTap={{ scale: 0.95 }} key={item.id} onClick={() => addToCart(item)}
                 className="p-4 bg-white rounded-xl shadow-sm border border-gray-200/50 flex flex-col items-center space-y-2 hover:shadow-md transition-all hover:border-primary/30">
-                <div className="w-14 h-14 bg-primary/10 text-primary rounded-full flex items-center justify-center text-xl font-bold">{item.name[0]}</div>
+                <div className="w-14 h-14 bg-primary/10 text-primary rounded-full flex items-center justify-center text-xl font-bold">
+                  <Utensils size={24} />
+                </div>
                 <span className="font-semibold text-text-main text-sm text-center">{item.name}</span>
-                <span className="text-sm font-bold text-accent">{formatCurrency(parseFloat(item.price || item.reorderLevel || '0'))}</span>
-                <span className={`text-xs ${parseFloat(item.quantity) < 5 ? 'text-error-zen' : 'text-text-secondary'}`}>{item.quantity} {item.unit}</span>
+                <span className="text-sm font-bold text-accent">{formatCurrency(parseFloat(item.price || '0'))}</span>
+                {item.defaultDiscount && parseFloat(item.defaultDiscount) > 0 && (
+                  <span className="text-xs text-success-zen">Giảm {item.defaultDiscount}%</span>
+                )}
               </motion.button>
             ))}
             {filteredItems.length === 0 && (
-              <div className="col-span-3 text-center py-12 text-gray-400">{searchTerm ? 'Không tìm thấy sản phẩm' : 'Chưa có sản phẩm nào'}</div>
+              <div className="col-span-3 text-center py-12 text-gray-400">
+                {searchTerm ? 'Không tìm thấy món' : 'Chưa có món nào trong menu'}
+              </div>
             )}
           </div>
         </div>
@@ -217,22 +282,28 @@ export default function POS() {
             <h2 className="text-xl font-bold text-primary-dark">Đơn hàng</h2>
             {cart.length > 0 && <span className="bg-accent text-white text-xs font-bold px-2 py-0.5 rounded-full ml-auto">{cart.length} món</span>}
           </div>
+          {selectedTruck && (
+            <div className="mt-2 flex items-center space-x-1 text-xs text-primary bg-primary/5 px-2 py-1 rounded-lg">
+              <TruckIcon size={12} />
+              <span>{trucks.find((t: any) => t.id === selectedTruck)?.name || 'Xe'}</span>
+            </div>
+          )}
         </div>
         <div className="flex-1 overflow-y-auto p-4 space-y-3">
           {cart.map((item: any) => (
-            <div key={item.productId} className="bg-surface-zen rounded-xl p-3">
+            <div key={item.menuItemId} className="bg-surface-zen rounded-xl p-3">
               <div className="flex justify-between items-start mb-2">
                 <div className="flex-1">
                   <p className="font-medium text-text-main">{item.productName}</p>
                   <p className="text-xs text-text-secondary">{formatCurrency(item.price)} / đơn vị</p>
                 </div>
-                <button onClick={() => removeFromCart(item.productId)} className="text-error-zen/50 hover:text-error-zen p-1"><Trash2 size={14} /></button>
+                <button onClick={() => removeFromCart(item.menuItemId)} className="text-error-zen/50 hover:text-error-zen p-1"><Trash2 size={14} /></button>
               </div>
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-2 bg-white rounded-lg border border-surface-zen">
-                  <button onClick={() => updateQty(item.productId, -1)} className="p-1.5 hover:bg-surface-zen rounded-l-lg"><Minus size={14} /></button>
+                  <button onClick={() => updateQty(item.menuItemId, -1)} className="p-1.5 hover:bg-surface-zen rounded-l-lg"><Minus size={14} /></button>
                   <span className="px-3 font-bold text-text-main min-w-[30px] text-center">{item.qty}</span>
-                  <button onClick={() => updateQty(item.productId, 1)} className="p-1.5 hover:bg-surface-zen rounded-r-lg"><Plus size={14} /></button>
+                  <button onClick={() => updateQty(item.menuItemId, 1)} className="p-1.5 hover:bg-surface-zen rounded-r-lg"><Plus size={14} /></button>
                 </div>
                 <span className="font-bold text-accent">{formatCurrency(item.price * item.qty)}</span>
               </div>
@@ -242,7 +313,7 @@ export default function POS() {
             <div className="text-center py-12 text-text-secondary/50">
               <ShoppingCart size={48} className="mx-auto mb-3 opacity-30" />
               <p>Giỏ hàng trống</p>
-              <p className="text-xs mt-1">Chọn sản phẩm để bắt đầu</p>
+              <p className="text-xs mt-1">Chọn món từ menu để bắt đầu</p>
             </div>
           )}
         </div>

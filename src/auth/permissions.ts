@@ -14,6 +14,7 @@ export const PERMISSIONS = {
   SETTINGS_PRINTER: 'settings:printer',
   SETTINGS_SYNC: 'settings:sync',
   SETTINGS_TEMPLATE: 'settings:template',
+  SETTINGS_INGREDIENT: 'settings:ingredient',
 
   // Sales
   SALES_CREATE: 'sales:create',
@@ -130,6 +131,7 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     PERMISSIONS.SETTINGS_PRINTER,
     PERMISSIONS.SETTINGS_SYNC,
     PERMISSIONS.SETTINGS_TEMPLATE,
+    PERMISSIONS.SETTINGS_INGREDIENT,
   ],
 
   // Cashier: sales only
@@ -152,6 +154,7 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     PERMISSIONS.INV_BOM,
     PERMISSIONS.INV_SUPPLIER,
     PERMISSIONS.INV_TRUCK,
+    PERMISSIONS.SETTINGS_INGREDIENT,
   ],
 
   // HR: HR operations only

@@ -33,10 +33,15 @@ app.add_middleware(
 from src.modules.sales.router import router as sales_router
 app.include_router(sales_router, prefix="/api/sales", tags=["Sales Sync"])
 
+# Import và gắn Router của module Auth (JWT Authentication)
+from src.modules.auth.router import router as auth_router
+app.include_router(auth_router)
+
 @app.get("/api/health")
 async def health_check():
     return {
         "status": "ok", 
         "database": "Supabase Cloud Connection: Active", 
-        "sync_engine": "WatermelonDB Ready"
+        "sync_engine": "WatermelonDB Ready",
+        "auth": "JWT RS256 with Redis Blacklist"
     }

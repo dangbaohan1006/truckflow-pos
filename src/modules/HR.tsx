@@ -2,25 +2,31 @@ import React, { useState, useEffect, useMemo } from 'react';
 import {
   Users, UserPlus, UserCheck, CalendarDays, HandCoins,
   Plus, Search, Clock, DollarSign, Briefcase,
+  Edit3, Trash2, Truck as TruckIcon, Building2, Filter,
 } from 'lucide-react';
 import { database } from '../database/index.js';
 import Employee from '../database/models/Employee.js';
 import Attendance from '../database/models/Attendance.js';
 import Advance from '../database/models/Advance.js';
+import TruckModel from '../database/models/Truck.js';
 import { formatCurrency, formatDate, formatDateTime, generateId } from '../shared/utils.js';
 import { Modal, Input, Select, StatCard, TabButton } from '../shared/components.js';
+import { useToast } from '../shared/ToastContext.js';
 
 export default function HR() {
+  const toast = useToast();
   const [employees, setEmployees] = useState<any[]>([]);
   const [attendances, setAttendances] = useState<any[]>([]);
   const [advances, setAdvances] = useState<any[]>([]);
+  const [trucks, setTrucks] = useState<any[]>([]);
   const [activeTab, setActiveTab] = useState('employees');
   const [searchTerm, setSearchTerm] = useState('');
+  const [departmentFilter, setDepartmentFilter] = useState('all');
   const [showAddEmployee, setShowAddEmployee] = useState(false);
   const [showAttendance, setShowAttendance] = useState(false);
   const [showAdvance, setShowAdvance] = useState(false);
-
-  const [empData, setEmpData] = useState({ name: '', phone: '', role: '', salary: '0', status: 'ACTIVE' });
+  const [showEditEmployee, setShowEditEmployee] = useState<any>(null);
+  const [empData, setEmpData] = useState({ name: '', phone: '', role: '', salary: '0', status: 'ACTIVE', department: '', truckId: '' });
   const [attData, setAttData] = useState({ employeeId: '', type: 'CHECK_IN', note: '' });
   const [advData, setAdvData] = useState({ employeeId: '', amount: '0', note: '' });
 
@@ -28,10 +34,20 @@ export default function HR() {
     const sub1 = database.get<Employee>('employees').query().observe().subscribe(setEmployees);
     const sub2 = database.get<Attendance>('attendance').query().observe().subscribe(setAttendances);
     const sub3 = database.get<Advance>('advances').query().observe().subscribe(setAdvances);
-    return () => { sub1.unsubscribe(); sub2.unsubscribe(); sub3.unsubscribe(); };
+    const sub4 = database.get<TruckModel>('trucks').query().observe().subscribe(setTrucks);
+    return () => { sub1.unsubscribe(); sub2.unsubscribe(); sub3.unsubscribe(); sub4.unsubscribe(); };
   }, []);
 
-  const filteredEmployees = employees.filter((e: any) => !searchTerm || e.name.toLowerCase().includes(searchTerm.toLowerCase()));
+  const departments = useMemo(() => {
+    const deps = new Set(employees.filter((e: any) => e.department).map((e: any) => e.department));
+    return ['all', ...Array.from(deps)];
+  }, [employees]);
+
+  const filteredEmployees = employees.filter((e: any) => {
+    if (searchTerm && !e.name.toLowerCase().includes(searchTerm.toLowerCase())) return false;
+    if (departmentFilter !== 'all' && e.department !== departmentFilter) return false;
+    return true;
+  });
 
   const addEmployee = async () => {
     await database.write(async () => {
@@ -42,12 +58,15 @@ export default function HR() {
         e.role = empData.role;
         e.salary = empData.salary;
         e.status = empData.status;
+        e.department = empData.department;
+        e.truckId = empData.truckId;
         e.createdAt = Date.now();
         e.updatedAt = Date.now();
       });
     });
     setShowAddEmployee(false);
-    setEmpData({ name: '', phone: '', role: '', salary: '0', status: 'ACTIVE' });
+    setEmpData({ name: '', phone: '', role: '', salary: '0', status: 'ACTIVE', department: '', truckId: '' });
+    toast.success(`Đã thêm nhân viên "${empData.name}"`);
   };
 
   const recordAttendance = async () => {
@@ -69,6 +88,8 @@ export default function HR() {
     });
     setShowAttendance(false);
     setAttData({ employeeId: '', type: 'CHECK_IN', note: '' });
+    const empName = getEmployeeName(attData.employeeId);
+    toast.success(`Đã chấm công ${attData.type === 'CHECK_IN' ? 'vào ca' : 'ra ca'} cho "${empName}"`);
   };
 
   const recordAdvance = async () => {
@@ -88,6 +109,35 @@ export default function HR() {
     });
     setShowAdvance(false);
     setAdvData({ employeeId: '', amount: '0', note: '' });
+    toast.success(`Đã tạm ứng ${formatCurrency(parseFloat(advData.amount))} cho "${emp?.name || ''}"`);
+  };
+
+  const updateEmployee = async () => {
+    if (!showEditEmployee) return;
+    await database.write(async () => {
+      const record = await database.get<Employee>('employees').find(showEditEmployee.id);
+      await record.update((u: any) => {
+        u.name = showEditEmployee.name;
+        u.phone = showEditEmployee.phone;
+        u.role = showEditEmployee.role;
+        u.salary = showEditEmployee.salary;
+        u.status = showEditEmployee.status;
+        u.department = showEditEmployee.department;
+        u.truckId = showEditEmployee.truckId;
+        u.updatedAt = Date.now();
+      });
+    });
+    setShowEditEmployee(null);
+    toast.success(`Đã cập nhật nhân viên "${showEditEmployee.name}"`);
+  };
+
+  const deleteEmployee = async (id: string, name: string) => {
+    if (!confirm(`Xóa nhân viên "${name}"?`)) return;
+    await database.write(async () => {
+      const record = await database.get<Employee>('employees').find(id);
+      await record.destroyPermanently();
+    });
+    toast.success(`Đã xóa nhân viên "${name}"`);
   };
 
   const getEmployeeName = (id: string) => employees.find((e: any) => e.id === id)?.name || 'N/A';
@@ -129,32 +179,71 @@ export default function HR() {
 
       {activeTab === 'employees' && (
         <>
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-4 gap-4">
             <StatCard icon={Users} label="Tổng nhân viên" value={employees.length.toString()} color="primary" />
             <StatCard icon={UserCheck} label="Đang làm" value={employees.filter((e: any) => e.status === 'ACTIVE').length.toString()} color="success-zen" />
-            <StatCard icon={DollarSign} label="Tổng lương" value={formatCurrency(employees.reduce((s: number, e: any) => s + parseFloat(e.salary || '0'), 0))} color="accent" />
+            <StatCard icon={DollarSign} label="Tổng lương/tháng" value={formatCurrency(employees.reduce((s: number, e: any) => s + parseFloat(e.salary || '0'), 0))} color="accent" />
+            <StatCard icon={Building2} label="Bộ phận" value={departments.filter(d => d !== 'all').length.toString()} color="primary" sub="phòng ban" />
           </div>
-          <div className="relative w-72">
-            <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary" />
-            <input type="text" placeholder="Tìm kiếm nhân viên..." value={searchTerm}
-              onChange={(e: any) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2.5 bg-white border border-surface-zen rounded-lg focus:ring-2 focus:ring-primary/30 outline-none" />
+          <div className="flex items-center space-x-3">
+            <div className="relative w-72">
+              <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary" />
+              <input type="text" placeholder="Tìm kiếm nhân viên..." value={searchTerm}
+                onChange={(e: any) => setSearchTerm(e.target.value)}
+                className="w-full pl-10 pr-4 py-2.5 bg-white border border-surface-zen rounded-lg focus:ring-2 focus:ring-primary/30 outline-none" />
+            </div>
+            <div className="flex items-center space-x-1">
+              <Filter size={16} className="text-text-secondary" />
+              <select value={departmentFilter} onChange={(e: any) => setDepartmentFilter(e.target.value)}
+                className="px-3 py-2 border border-surface-zen rounded-lg text-sm bg-white outline-none">
+                <option value="all">Tất cả bộ phận</option>
+                {departments.filter(d => d !== 'all').map((d: string) => (
+                  <option key={d} value={d}>{d}</option>
+                ))}
+              </select>
+            </div>
           </div>
           <div className="grid grid-cols-3 gap-4">
             {filteredEmployees.map((emp: any) => (
               <div key={emp.id} className="bg-white rounded-xl p-4 shadow-sm border border-surface-zen">
                 <div className="flex items-center space-x-3 mb-3">
                   <div className="w-12 h-12 bg-primary/10 text-primary rounded-full flex items-center justify-center text-lg font-bold">{emp.name[0]}</div>
-                  <div>
+                  <div className="flex-1">
                     <h4 className="font-semibold">{emp.name}</h4>
                     <p className="text-xs text-text-secondary">{emp.role || 'Chưa phân công'}</p>
+                  </div>
+                  <div className="flex space-x-1">
+                    <button onClick={() => setShowEditEmployee({
+                      id: emp.id, name: emp.name, phone: emp.phone,
+                      role: emp.role, salary: emp.salary, status: emp.status,
+                      department: emp.department || '', truckId: emp.truckId || '',
+                    })}
+                      className="p-1.5 text-text-secondary hover:text-primary hover:bg-primary/10 rounded-lg transition-all"
+                      title="Sửa">
+                      <Edit3 size={14} />
+                    </button>
+                    <button onClick={() => deleteEmployee(emp.id, emp.name)}
+                      className="p-1.5 text-text-secondary hover:text-error-zen hover:bg-error-zen/10 rounded-lg transition-all"
+                      title="Xóa">
+                      <Trash2 size={14} />
+                    </button>
                   </div>
                 </div>
                 <div className="space-y-1 text-sm">
                   <p className="text-text-secondary">{emp.phone}</p>
                   <p className="font-medium text-accent">Lương: {formatCurrency(parseFloat(emp.salary || '0'))}</p>
+                  {emp.department && (
+                    <p className="text-xs text-primary flex items-center space-x-1">
+                      <Building2 size={12} /><span>{emp.department}</span>
+                    </p>
+                  )}
+                  {emp.truckId && (
+                    <p className="text-xs text-primary flex items-center space-x-1">
+                      <TruckIcon size={12} /><span>{trucks.find((t: any) => t.id === emp.truckId)?.name || 'Xe'}</span>
+                    </p>
+                  )}
                 </div>
-                <div className="mt-3 pt-3 border-t border-surface-zen">
+                <div className="mt-3 pt-3 border-t border-surface-zen flex items-center justify-between">
                   <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${emp.status === 'ACTIVE' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'}`}>
                     {emp.status === 'ACTIVE' ? 'Đang làm' : 'Đã nghỉ'}
                   </span>
@@ -239,6 +328,9 @@ export default function HR() {
             <Input label="Số điện thoại" value={empData.phone} onChange={(e: any) => setEmpData({ ...empData, phone: e.target.value })} placeholder="Số điện thoại..." />
             <Input label="Chức vụ" value={empData.role} onChange={(e: any) => setEmpData({ ...empData, role: e.target.value })} placeholder="VD: Nhân viên bán hàng..." />
             <Input label="Lương" type="number" value={empData.salary} onChange={(e: any) => setEmpData({ ...empData, salary: e.target.value })} placeholder="0" />
+            <Input label="Bộ phận" value={empData.department} onChange={(e: any) => setEmpData({ ...empData, department: e.target.value })} placeholder="VD: Bán hàng, Bếp..." />
+            <Select label="Phân công xe" value={empData.truckId} onChange={(e: any) => setEmpData({ ...empData, truckId: e.target.value })}
+              options={[{ value: '', label: '-- Không phân công --' }, ...trucks.filter((t: any) => t.status === 'ACTIVE').map((t: any) => ({ value: t.id, label: `${t.name} (${t.code})` }))]} />
             <Select label="Trạng thái" value={empData.status} onChange={(e: any) => setEmpData({ ...empData, status: e.target.value })}
               options={[{ value: 'ACTIVE', label: 'Đang làm' }, { value: 'INACTIVE', label: 'Đã nghỉ' }]} />
             <button onClick={addEmployee} disabled={!empData.name} className="w-full py-3 bg-accent text-white rounded-xl font-medium hover:bg-primary-dark transition-all disabled:opacity-50">
@@ -280,6 +372,26 @@ export default function HR() {
             <Input label="Lý do" value={advData.note} onChange={(e: any) => setAdvData({ ...advData, note: e.target.value })} placeholder="Lý do tạm ứng..." />
             <button onClick={recordAdvance} disabled={!advData.employeeId || !advData.amount} className="w-full py-3 bg-accent text-white rounded-xl font-medium hover:bg-primary-dark transition-all disabled:opacity-50">
               Xác nhận tạm ứng
+            </button>
+          </div>
+        </Modal>
+      )}
+
+      {showEditEmployee && (
+        <Modal title="Sửa thông tin nhân viên" onClose={() => setShowEditEmployee(null)}>
+          <div className="space-y-3">
+            <Input label="Họ tên" value={showEditEmployee.name} onChange={(e: any) => setShowEditEmployee({ ...showEditEmployee, name: e.target.value })} placeholder="Nhập họ tên..." />
+            <Input label="Số điện thoại" value={showEditEmployee.phone} onChange={(e: any) => setShowEditEmployee({ ...showEditEmployee, phone: e.target.value })} placeholder="Số điện thoại..." />
+            <Input label="Chức vụ" value={showEditEmployee.role} onChange={(e: any) => setShowEditEmployee({ ...showEditEmployee, role: e.target.value })} placeholder="VD: Nhân viên bán hàng..." />
+            <Input label="Lương" type="number" value={showEditEmployee.salary} onChange={(e: any) => setShowEditEmployee({ ...showEditEmployee, salary: e.target.value })} placeholder="0" />
+            <Input label="Bộ phận" value={showEditEmployee.department} onChange={(e: any) => setShowEditEmployee({ ...showEditEmployee, department: e.target.value })} placeholder="VD: Bán hàng, Bếp..." />
+            <Select label="Phân công xe" value={showEditEmployee.truckId} onChange={(e: any) => setShowEditEmployee({ ...showEditEmployee, truckId: e.target.value })}
+              options={[{ value: '', label: '-- Không phân công --' }, ...trucks.filter((t: any) => t.status === 'ACTIVE').map((t: any) => ({ value: t.id, label: `${t.name} (${t.code})` }))]} />
+            <Select label="Trạng thái" value={showEditEmployee.status} onChange={(e: any) => setShowEditEmployee({ ...showEditEmployee, status: e.target.value })}
+              options={[{ value: 'ACTIVE', label: 'Đang làm' }, { value: 'INACTIVE', label: 'Đã nghỉ' }]} />
+            <button onClick={updateEmployee} disabled={!showEditEmployee.name}
+              className="w-full py-3 bg-accent text-white rounded-xl font-medium hover:bg-primary-dark transition-all">
+              Cập nhật
             </button>
           </div>
         </Modal>

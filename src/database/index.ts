@@ -15,6 +15,8 @@ import Employee from './models/Employee.js';
 import Attendance from './models/Attendance.js';
 import Advance from './models/Advance.js';
 import User from './models/User.js';
+import MenuItem from './models/MenuItem.js';
+import MenuIngredient from './models/MenuIngredient.js';
 export { syncProvider as mySync } from './sync.js';
 
 const adapter = new LokiJSAdapter({
@@ -39,5 +41,7 @@ export const database = new Database({
     Attendance,
     Advance,
     User,
+    MenuItem,
+    MenuIngredient,
   ],
 });

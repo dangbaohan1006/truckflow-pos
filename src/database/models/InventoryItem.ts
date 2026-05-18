@@ -12,6 +12,8 @@ export default class InventoryItem extends Model {
   @text('price') price!: string;
   @text('category') category!: string;
   @field('is_raw_material') isRawMaterial!: boolean;
+  @text('location_type') locationType!: string;
+  @text('truck_id') truckId!: string;
   @readonly @field('created_at') createdAt!: number;
   @readonly @field('updated_at') updatedAt!: number;
 }

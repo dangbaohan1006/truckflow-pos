@@ -14,6 +14,7 @@ import Reports from './modules/Reports.js';
 import Finance from './modules/Finance.js';
 import HR from './modules/HR.js';
 import SettingsPage from './modules/Settings.js';
+import { ToastProvider } from './shared/ToastContext.js';
 
 const ICON_MAP: Record<string, any> = {
   Store, Package, BarChart3, DollarSign, Users, Settings,
@@ -185,7 +186,9 @@ function AppContent() {
 export default function App() {
   return (
     <AuthProvider>
-      <AppContent />
+      <ToastProvider>
+        <AppContent />
+      </ToastProvider>
     </AuthProvider>
   );
 }
