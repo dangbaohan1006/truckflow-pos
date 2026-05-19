@@ -16,7 +16,7 @@ function getSheet_(sheetName) {
     // Auto-create sheet if it doesn't exist
     sheet = ss.insertSheet(sheetName);
     // Write header row
-    const headers = COLUMNS[sheetName];
+    const headers = COLUMNS[sheetName.toUpperCase()];
     if (headers) {
       sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
     }
@@ -55,7 +55,7 @@ function findRowByColumn_(sheetName, columnName, value) {
 
 function rowToObject_(sheetName, rowNum) {
   const sheet = getSheet_(sheetName);
-  const headers = COLUMNS[sheetName];
+  const headers = COLUMNS[sheetName.toUpperCase()];
   const row = sheet.getRange(rowNum, 1, 1, headers.length).getValues()[0];
   const obj = {};
   headers.forEach((h, i) => { obj[h] = row[i]; });
@@ -88,7 +88,7 @@ function sheetFindOne(sheetName, columnName, value) {
  */
 function sheetInsert(sheetName, data) {
   const sheet = getSheet_(sheetName);
-  const headers = COLUMNS[sheetName];
+  const headers = COLUMNS[sheetName.toUpperCase()];
   const row = headers.map(h => data[h] !== undefined ? data[h] : '');
   sheet.appendRow(row);
   // Return the inserted row (last row)
@@ -106,7 +106,7 @@ function sheetUpdate(sheetName, columnName, value, data) {
   if (rowNum === -1) return null;
   
   const sheet = getSheet_(sheetName);
-  const headers = COLUMNS[sheetName];
+  const headers = COLUMNS[sheetName.toUpperCase()];
   
   // Build the row array: keep existing values, overwrite with data
   const existingRow = sheet.getRange(rowNum, 1, 1, headers.length).getValues()[0];
