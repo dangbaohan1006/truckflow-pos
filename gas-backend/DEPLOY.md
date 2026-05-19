@@ -46,8 +46,8 @@
 1. In the Apps Script editor, click **Deploy → New deployment**
 2. Select type: **Web app**
 3. Description: "TruckFlow POS Backend"
-4. Execute as: **User accessing the web app**
-5. Who has access: **Anyone** (or specific users for testing)
+4. Execute as: **Me (your-email@gmail.com)**
+5. Who has access: **Anyone**
 6. Click **Deploy**
 7. Copy the **Web app URL** (looks like: `https://script.google.com/macros/s/.../exec`)
 
