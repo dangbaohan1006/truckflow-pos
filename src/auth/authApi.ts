@@ -15,7 +15,9 @@
 // ---------------------------------------------------------------------------
 // In development, Vite proxies /api to the backend (see vite.config.ts proxy).
 // In production, set VITE_API_URL to the actual Google Apps Script Web App URL.
-const API_BASE_URL = import.meta.env.VITE_API_URL || '';
+// Fallback: hardcode GAS URL for production deployment
+const GAS_API_URL = 'https://script.google.com/macros/s/AKfycbwUoJrEgm2bX7lyreOJYm1ciVgL4S6kSFB6Z3RYzX8O87FBMA1_9BvaoaNU2jS164Y9Pw/exec';
+const API_BASE_URL = import.meta.env.VITE_API_URL || GAS_API_URL;
 
 // ---------------------------------------------------------------------------
 // Types
