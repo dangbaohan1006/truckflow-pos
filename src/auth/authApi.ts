@@ -85,6 +85,13 @@ export function getSessionToken(): string | null {
   return _sessionToken;
 }
 
+/**
+ * Alias for getSessionToken — used by inventoryApi and other modules.
+ */
+export function getAccessToken(): string | null {
+  return _sessionToken;
+}
+
 export function hasValidSession(): boolean {
   return !!_sessionToken;
 }
