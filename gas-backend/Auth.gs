@@ -91,8 +91,8 @@ function handleLogin(body) {
     }
   }
 
-  // Check password
-  if (user.password !== password) {
+  // Check password (cast to String in case Google Sheets formatted password cell as a number)
+  if (String(user.password) !== String(password)) {
     return { error: 'Sai tên đăng nhập hoặc mật khẩu', status: 401 };
   }
 
