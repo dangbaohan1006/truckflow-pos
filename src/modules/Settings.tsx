@@ -81,6 +81,21 @@ export default function Settings() {
     toast.success(result.message || 'Đã import dữ liệu test');
   };
 
+  const resetDatabase = async () => {
+    if (!confirm('CẢNH BÁO NGUY HIỂM:\nHành động này sẽ xóa vĩnh viễn TOÀN BỘ dữ liệu (sản phẩm, nguyên liệu, nhân sự, đơn hàng, giao dịch...) đang lưu trên trình duyệt này và đưa hệ thống về trạng thái trống.\n\nBạn có chắc chắn muốn tiếp tục?')) return;
+    try {
+      await database.write(async () => {
+        await database.unsafeResetDatabase();
+      });
+      toast.success('Đã reset cơ sở dữ liệu thành công!');
+      setTimeout(() => {
+        window.location.reload();
+      }, 1000);
+    } catch (e: any) {
+      toast.error('Lỗi khi xóa dữ liệu: ' + e.message);
+    }
+  };
+
   const addUser = async () => {
     if (!userForm.username || !userForm.password) return;
     await database.write(async () => {
@@ -409,6 +424,14 @@ export default function Settings() {
               {materialsSeedMessage && (
                 <p className="text-sm text-success-zen font-medium">{materialsSeedMessage}</p>
               )}
+            </div>
+            <div className="flex flex-col items-center space-y-3 mt-8 pt-6 border-t border-error-zen/10">
+              <p className="text-xs text-text-secondary">Khu vực nguy hiểm (Dành cho sản xuất)</p>
+              <button onClick={resetDatabase}
+                className="px-6 py-3 bg-error-zen text-white rounded-xl font-medium hover:bg-red-700 transition-all flex items-center space-x-2 shadow-lg shadow-error-zen/20">
+                <Trash2 size={18} />
+                <span>Xóa toàn bộ dữ liệu & Đưa về trống</span>
+              </button>
             </div>
           </div>
         </div>
