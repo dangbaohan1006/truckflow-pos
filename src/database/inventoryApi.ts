@@ -10,10 +10,11 @@ type InventoryItemPayload = {
 async function postInventoryAction<T>(endpoint: string, body: Record<string, unknown>): Promise<T> {
   const token = getAccessToken();
   const url = buildUrl(endpoint);
+  const isGas = url.includes('script.google.com');
   const response = await fetch(url, {
     method: 'POST',
     headers: {
-      'Content-Type': 'application/json',
+      'Content-Type': isGas ? 'text/plain;charset=utf-8' : 'application/json',
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
     body: JSON.stringify(body),

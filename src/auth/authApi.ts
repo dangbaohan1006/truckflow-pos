@@ -145,11 +145,16 @@ async function request<T>(
   params?: Record<string, string>,
 ): Promise<T> {
   const url = buildUrl(endpoint, params);
+  const isGas = API_BASE_URL.includes('script.google.com');
   
   const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
+    'Content-Type': isGas ? 'text/plain;charset=utf-8' : 'application/json',
     ...(options.headers as Record<string, string>),
   };
+
+  if (isGas) {
+    headers['Content-Type'] = 'text/plain;charset=utf-8';
+  }
 
   const response = await fetch(url, {
     ...options,

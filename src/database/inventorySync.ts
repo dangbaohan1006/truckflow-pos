@@ -40,10 +40,11 @@ export async function inventorySyncProvider() {
     },
     pushChanges: async ({ changes, lastPulledAt }) => {
       const url = buildUrl('/api/inventory/sync');
+      const isGas = url.includes('script.google.com');
       const response = await fetch(url, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
+          'Content-Type': isGas ? 'text/plain;charset=utf-8' : 'application/json',
           ...buildAuthHeaders(),
         },
         body: JSON.stringify({ changes, lastPulledAt }),
@@ -249,6 +250,7 @@ export async function processInventoryQueue(): Promise<{ processed: number; fail
  */
 async function executeInventoryOp(op: QueuedInventoryOp): Promise<void> {
   const url = buildUrl(`/api/inventory/${op.operation}`);
+  const isGas = url.includes('script.google.com');
 
   const body: Record<string, any> = { items: op.items };
   if (op.location_id) body.location_id = op.location_id;
@@ -258,7 +260,7 @@ async function executeInventoryOp(op: QueuedInventoryOp): Promise<void> {
   const response = await fetch(url, {
     method: 'POST',
     headers: {
-      'Content-Type': 'application/json',
+      'Content-Type': isGas ? 'text/plain;charset=utf-8' : 'application/json',
       ...buildAuthHeaders(),
     },
     body: JSON.stringify(body),

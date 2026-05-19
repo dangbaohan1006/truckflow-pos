@@ -23,10 +23,11 @@ export async function syncProvider() {
     },
     pushChanges: async ({ changes, lastPulledAt }) => {
       const url = buildUrl('/api/sales/sync');
+      const isGas = url.includes('script.google.com');
       const response = await fetch(url, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
+          'Content-Type': isGas ? 'text/plain;charset=utf-8' : 'application/json',
           ...buildAuthHeaders(),
         },
         body: JSON.stringify({ changes, lastPulledAt }),
