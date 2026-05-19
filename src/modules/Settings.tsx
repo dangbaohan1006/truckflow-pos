@@ -725,15 +725,24 @@ function MenuConfig() {
                   { value: 'Tráng miệng', label: 'Tráng miệng' },
                   { value: 'Khác', label: 'Khác' },
                 ]} />
-              <Select label="Đơn vị" value={itemForm.unit}
-                onChange={(e: any) => setItemForm({ ...itemForm, unit: e.target.value })}
-                options={[
-                  { value: 'ly', label: 'Ly' },
-                  { value: 'chai', label: 'Chai' },
-                  { value: 'ổ', label: 'Ổ' },
-                  { value: 'suất', label: 'Suất' },
-                  { value: 'phần', label: 'Phần' },
-                ]} />
+              <div>
+                <label className="text-sm font-semibold text-primary-dark block mb-1.5">Đơn vị</label>
+                <input type="text" list="menu-item-units-list" value={itemForm.unit}
+                  onChange={(e: any) => setItemForm({ ...itemForm, unit: e.target.value })}
+                  placeholder="Chọn hoặc nhập..."
+                  className="w-full px-4 py-3 bg-white border border-surface-zen rounded-xl font-medium text-sm focus:ring-2 focus:ring-primary/30 outline-none transition-all" />
+                <datalist id="menu-item-units-list">
+                  <option value="Ly" />
+                  <option value="Chai" />
+                  <option value="Ổ" />
+                  <option value="Suất" />
+                  <option value="Phần" />
+                  <option value="Cái" />
+                  <option value="Thùng" />
+                  <option value="Lon" />
+                  <option value="Bịch" />
+                </datalist>
+              </div>
             </div>
             <Input label="Giảm giá mặc định (%)" type="number" value={itemForm.defaultDiscount}
               onChange={(e: any) => setItemForm({ ...itemForm, defaultDiscount: e.target.value })} placeholder="0" />
@@ -842,15 +851,13 @@ function MenuConfig() {
                   { value: 'Tráng miệng', label: 'Tráng miệng' },
                   { value: 'Khác', label: 'Khác' },
                 ]} />
-              <Select label="Đơn vị" value={showEditItem.unit}
-                onChange={(e: any) => setShowEditItem({ ...showEditItem, unit: e.target.value })}
-                options={[
-                  { value: 'ly', label: 'Ly' },
-                  { value: 'chai', label: 'Chai' },
-                  { value: 'ổ', label: 'Ổ' },
-                  { value: 'suất', label: 'Suất' },
-                  { value: 'phần', label: 'Phần' },
-                ]} />
+              <div>
+                <label className="text-sm font-semibold text-primary-dark block mb-1.5">Đơn vị</label>
+                <input type="text" list="menu-item-units-list" value={showEditItem.unit}
+                  onChange={(e: any) => setShowEditItem({ ...showEditItem, unit: e.target.value })}
+                  placeholder="Chọn hoặc nhập..."
+                  className="w-full px-4 py-3 bg-white border border-surface-zen rounded-xl font-medium text-sm focus:ring-2 focus:ring-primary/30 outline-none transition-all" />
+              </div>
             </div>
             <Input label="Giảm giá mặc định (%)" type="number" value={showEditItem.defaultDiscount}
               onChange={(e: any) => setShowEditItem({ ...showEditItem, defaultDiscount: e.target.value })} />
@@ -1112,20 +1119,29 @@ function IngredientConfig() {
             <Input label="Tên nguyên liệu" value={ingredientForm.name}
               onChange={(e: any) => setIngredientForm({ ...ingredientForm, name: e.target.value })} placeholder="VD: Cà phê hạt..." />
             <div className="grid grid-cols-2 gap-3">
-              <Select label="Đơn vị" value={ingredientForm.unit}
-                onChange={(e: any) => setIngredientForm({ ...ingredientForm, unit: e.target.value })}
-                options={[
-                  { value: 'kg', label: 'Kg' },
-                  { value: 'g', label: 'Gram' },
-                  { value: 'lít', label: 'Lít' },
-                  { value: 'ml', label: 'Ml' },
-                  { value: 'lon', label: 'Lon' },
-                  { value: 'hộp', label: 'Hộp' },
-                  { value: 'chai', label: 'Chai' },
-                  { value: 'bịch', label: 'Bịch' },
-                  { value: 'ổ', label: 'Ổ' },
-                  { value: 'cái', label: 'Cái' },
-                ]} />
+              <div>
+                <label className="text-sm font-semibold text-primary-dark block mb-1.5">Đơn vị</label>
+                <input type="text" list="ingredient-units-list" value={ingredientForm.unit}
+                  onChange={(e: any) => setIngredientForm({ ...ingredientForm, unit: e.target.value })}
+                  placeholder="Chọn hoặc nhập..."
+                  className="w-full px-4 py-3 bg-white border border-surface-zen rounded-xl font-medium text-sm focus:ring-2 focus:ring-primary/30 outline-none transition-all" />
+                <datalist id="ingredient-units-list">
+                  <option value="Kg" />
+                  <option value="Gram" />
+                  <option value="Lít" />
+                  <option value="Ml" />
+                  <option value="Lon" />
+                  <option value="Hộp" />
+                  <option value="Chai" />
+                  <option value="Bịch" />
+                  <option value="Ổ" />
+                  <option value="Cái" />
+                  <option value="Túi" />
+                  <option value="Gói" />
+                  <option value="Thùng" />
+                  <option value="Ly" />
+                </datalist>
+              </div>
               <Input label="Giá nhập" type="number" value={ingredientForm.price}
                 onChange={(e: any) => setIngredientForm({ ...ingredientForm, price: e.target.value })} placeholder="0" />
             </div>
@@ -1146,20 +1162,13 @@ function IngredientConfig() {
             <Input label="Tên nguyên liệu" value={showEditIngredient.name}
               onChange={(e: any) => setShowEditIngredient({ ...showEditIngredient, name: e.target.value })} />
             <div className="grid grid-cols-2 gap-3">
-              <Select label="Đơn vị" value={showEditIngredient.unit}
-                onChange={(e: any) => setShowEditIngredient({ ...showEditIngredient, unit: e.target.value })}
-                options={[
-                  { value: 'kg', label: 'Kg' },
-                  { value: 'g', label: 'Gram' },
-                  { value: 'lít', label: 'Lít' },
-                  { value: 'ml', label: 'Ml' },
-                  { value: 'lon', label: 'Lon' },
-                  { value: 'hộp', label: 'Hộp' },
-                  { value: 'chai', label: 'Chai' },
-                  { value: 'bịch', label: 'Bịch' },
-                  { value: 'ổ', label: 'Ổ' },
-                  { value: 'cái', label: 'Cái' },
-                ]} />
+              <div>
+                <label className="text-sm font-semibold text-primary-dark block mb-1.5">Đơn vị</label>
+                <input type="text" list="ingredient-units-list" value={showEditIngredient.unit}
+                  onChange={(e: any) => setShowEditIngredient({ ...showEditIngredient, unit: e.target.value })}
+                  placeholder="Chọn hoặc nhập..."
+                  className="w-full px-4 py-3 bg-white border border-surface-zen rounded-xl font-medium text-sm focus:ring-2 focus:ring-primary/30 outline-none transition-all" />
+              </div>
               <Input label="Giá nhập" type="number" value={showEditIngredient.price}
                 onChange={(e: any) => setShowEditIngredient({ ...showEditIngredient, price: e.target.value })} />
             </div>
