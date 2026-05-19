@@ -107,8 +107,18 @@ export function hasValidSession(): boolean {
  * Google Apps Script doesn't support custom headers in doGet/doPost,
  * so we pass the session token as a query parameter.
  */
-function buildUrl(endpoint: string, params?: Record<string, string>): string {
-  const url = new URL(`${API_BASE_URL}${endpoint}`);
+export function buildUrl(endpoint: string, params?: Record<string, string>): string {
+  const isGas = API_BASE_URL.includes('script.google.com');
+  let url: URL;
+  
+  if (isGas) {
+    // For Google Apps Script Web App, keep the base URL pathname exactly as is (/exec)
+    // and only pass the endpoint as the 'path' query parameter.
+    url = new URL(API_BASE_URL);
+  } else {
+    // For standard APIs (or dev proxy), append the endpoint to the path.
+    url = new URL(`${API_BASE_URL}${endpoint}`, window.location.origin);
+  }
   
   // Add path as query parameter (GAS routing)
   url.searchParams.set('path', endpoint);
@@ -127,6 +137,7 @@ function buildUrl(endpoint: string, params?: Record<string, string>): string {
   
   return url.toString();
 }
+
 
 async function request<T>(
   endpoint: string,

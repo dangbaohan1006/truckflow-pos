@@ -12,9 +12,8 @@
 
 import { synchronize } from '@nozbe/watermelondb/sync';
 import { database } from './index';
-import { getSessionToken } from '../auth/authApi';
+import { getSessionToken, buildUrl } from '../auth/authApi';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || '';
 const QUEUE_DB_NAME = 'inventory-sync-queue';
 const QUEUE_STORE_NAME = 'pending-operations';
 
@@ -26,8 +25,9 @@ export async function inventorySyncProvider() {
   await synchronize({
     database,
     pullChanges: async ({ lastPulledAt }) => {
+      const url = buildUrl('/api/inventory/sync', { lastPulledAt: String(lastPulledAt || 0) });
       const response = await fetch(
-        `${API_BASE_URL}/api/inventory/sync?lastPulledAt=${lastPulledAt || 0}`,
+        url,
         {
           headers: buildAuthHeaders(),
         }
@@ -39,7 +39,8 @@ export async function inventorySyncProvider() {
       return { changes, timestamp };
     },
     pushChanges: async ({ changes, lastPulledAt }) => {
-      const response = await fetch(`${API_BASE_URL}/api/inventory/sync`, {
+      const url = buildUrl('/api/inventory/sync');
+      const response = await fetch(url, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -56,7 +57,7 @@ export async function inventorySyncProvider() {
 
 function buildAuthHeaders(): Record<string, string> {
   const token = getSessionToken();
-  return token ? { 'X-Session-Token': token } : {};
+  return token ? { 'X-Session-Token': token, Authorization: `Bearer ${token}` } : {};
 }
 
 // ============================================================
@@ -247,19 +248,18 @@ export async function processInventoryQueue(): Promise<{ processed: number; fail
  * Execute a single queued inventory operation against the API.
  */
 async function executeInventoryOp(op: QueuedInventoryOp): Promise<void> {
-  const token = getSessionToken();
-  const endpoint = `${API_BASE_URL}/api/inventory/${op.operation}`;
+  const url = buildUrl(`/api/inventory/${op.operation}`);
 
   const body: Record<string, any> = { items: op.items };
   if (op.location_id) body.location_id = op.location_id;
   if (op.reference) body.reference = op.reference;
   if (op.note) body.note = op.note;
 
-  const response = await fetch(endpoint, {
+  const response = await fetch(url, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      ...(token ? { 'X-Session-Token': token } : {}),
+      ...buildAuthHeaders(),
     },
     body: JSON.stringify(body),
   });

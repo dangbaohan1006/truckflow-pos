@@ -1,6 +1,4 @@
-import { getAccessToken } from '../auth/authApi.js';
-
-const API_BASE_URL = import.meta.env.VITE_API_URL || '';
+import { getAccessToken, buildUrl } from '../auth/authApi.js';
 
 type InventoryItemPayload = {
   product_id: string;
@@ -11,7 +9,8 @@ type InventoryItemPayload = {
 
 async function postInventoryAction<T>(endpoint: string, body: Record<string, unknown>): Promise<T> {
   const token = getAccessToken();
-  const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+  const url = buildUrl(endpoint);
+  const response = await fetch(url, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

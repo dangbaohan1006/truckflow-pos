@@ -1,11 +1,20 @@
 import { synchronize } from '@nozbe/watermelondb/sync';
 import { database } from './index';
+import { buildUrl, getSessionToken } from '../auth/authApi';
+
+function buildAuthHeaders(): Record<string, string> {
+  const token = getSessionToken();
+  return token ? { 'X-Session-Token': token, Authorization: `Bearer ${token}` } : {};
+}
 
 export async function syncProvider() {
   await synchronize({
     database,
     pullChanges: async ({ lastPulledAt }) => {
-      const response = await fetch(`/api/sales/sync?lastPulledAt=${lastPulledAt || 0}`);
+      const url = buildUrl('/api/sales/sync', { lastPulledAt: String(lastPulledAt || 0) });
+      const response = await fetch(url, {
+        headers: buildAuthHeaders(),
+      });
       if (!response.ok) {
         throw new Error(await response.text());
       }
@@ -13,10 +22,12 @@ export async function syncProvider() {
       return { changes, timestamp };
     },
     pushChanges: async ({ changes, lastPulledAt }) => {
-      const response = await fetch('/api/sales/sync', {
+      const url = buildUrl('/api/sales/sync');
+      const response = await fetch(url, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          ...buildAuthHeaders(),
         },
         body: JSON.stringify({ changes, lastPulledAt }),
       });
@@ -26,3 +37,4 @@ export async function syncProvider() {
     },
   });
 }
+
