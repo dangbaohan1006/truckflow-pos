@@ -17,10 +17,22 @@ import MenuItem from '../database/models/MenuItem.js';
 import MenuIngredient from '../database/models/MenuIngredient.js';
 import InventoryItem from '../database/models/InventoryItem.js';
 
+const getSavedUnits = (): string[] => {
+  const saved = localStorage.getItem('truckflow_units');
+  if (saved) {
+    try {
+      return JSON.parse(saved);
+    } catch {}
+  }
+  return ['Kg', 'Gram', 'Lít', 'Ml', 'Lon', 'Hộp', 'Chai', 'Bịch', 'Ổ', 'Cái', 'Ly', 'Phần', 'Suất'];
+};
+
 export default function Settings() {
   const toast = useToast();
   const { user: currentUser, hasPermission, isAdmin } = useAuth();
   const [activeTab, setActiveTab] = useState('general');
+  const [units, setUnits] = useState<string[]>(getSavedUnits);
+  const [newUnit, setNewUnit] = useState('');
   const [saved, setSaved] = useState(false);
   const [users, setUsers] = useState<any[]>([]);
   const [showAddUser, setShowAddUser] = useState(false);
@@ -96,6 +108,31 @@ export default function Settings() {
     }
   };
 
+  const handleAddUnit = () => {
+    if (!newUnit.trim()) return;
+    const trimmed = newUnit.trim();
+    if (units.some(u => u.toLowerCase() === trimmed.toLowerCase())) {
+      toast.error('Đơn vị này đã tồn tại!');
+      return;
+    }
+    const updated = [...units, trimmed];
+    setUnits(updated);
+    localStorage.setItem('truckflow_units', JSON.stringify(updated));
+    setNewUnit('');
+    toast.success(`Đã thêm đơn vị "${trimmed}"`);
+  };
+
+  const handleDeleteUnit = (unitToDelete: string) => {
+    if (units.length <= 1) {
+      toast.error('Phải giữ lại ít nhất 1 đơn vị!');
+      return;
+    }
+    const updated = units.filter(u => u !== unitToDelete);
+    setUnits(updated);
+    localStorage.setItem('truckflow_units', JSON.stringify(updated));
+    toast.success(`Đã xóa đơn vị "${unitToDelete}"`);
+  };
+
   const addUser = async () => {
     if (!userForm.username || !userForm.password) return;
     await database.write(async () => {
@@ -166,6 +203,7 @@ export default function Settings() {
     { key: 'general', label: 'Cửa hàng', show: true },
     { key: 'menu', label: 'Menu', show: isAdmin || hasPermission(PERMISSIONS.INV_BOM) },
     { key: 'ingredients', label: 'Nguyên liệu', show: isAdmin || hasPermission(PERMISSIONS.SETTINGS_INGREDIENT) },
+    { key: 'units', label: 'Đơn vị', show: isAdmin || hasPermission(PERMISSIONS.SETTINGS_INGREDIENT) },
     { key: 'users', label: 'Người dùng', show: canManageUsers || hasPermission(PERMISSIONS.USER_VIEW) },
     { key: 'sync', label: 'Đồng bộ', show: hasPermission(PERMISSIONS.SETTINGS_SYNC) || isAdmin },
     { key: 'printer', label: 'Máy in', show: hasPermission(PERMISSIONS.SETTINGS_PRINTER) || isAdmin },
@@ -224,9 +262,52 @@ export default function Settings() {
         </div>
       )}
 
-      {activeTab === 'menu' && <MenuConfig />}
+      {activeTab === 'menu' && <MenuConfig units={units} />}
 
-      {activeTab === 'ingredients' && <IngredientConfig />}
+      {activeTab === 'ingredients' && <IngredientConfig units={units} />}
+
+      {activeTab === 'units' && (
+        <div className="bg-white rounded-xl p-6 shadow-sm border border-surface-zen space-y-6">
+          <div>
+            <h3 className="font-bold text-primary-dark text-lg">Quản lý đơn vị tính</h3>
+            <p className="text-text-secondary text-sm mt-1">Cấu hình danh sách các đơn vị sử dụng cho sản phẩm và nguyên liệu.</p>
+          </div>
+
+          {/* Add unit form */}
+          <div className="flex space-x-3 items-end max-w-md">
+            <div className="flex-1">
+              <label className="text-sm text-text-secondary font-medium block mb-1">Tên đơn vị mới</label>
+              <input type="text" value={newUnit} onChange={(e) => setNewUnit(e.target.value)}
+                placeholder="VD: Ly, Chai, Túi, Thùng..."
+                className="w-full px-4 py-2.5 border border-surface-zen rounded-lg focus:ring-2 focus:ring-primary/30 outline-none" />
+            </div>
+            <button onClick={handleAddUnit}
+              className="px-6 py-2.5 bg-accent text-white rounded-lg font-medium hover:bg-primary-dark transition-all flex items-center space-x-1 h-[46px]">
+              <Plus size={16} />
+              <span>Thêm</span>
+            </button>
+          </div>
+
+          {/* List of units */}
+          <div className="border border-surface-zen rounded-xl overflow-hidden max-w-md bg-surface-zen/10">
+            <div className="bg-surface-zen px-4 py-3 font-semibold text-sm text-text-secondary border-b border-surface-zen">
+              Danh sách đơn vị ({units.length})
+            </div>
+            <div className="divide-y divide-surface-zen max-h-[300px] overflow-y-auto bg-white">
+              {units.map((unit) => (
+                <div key={unit} className="flex justify-between items-center px-4 py-3 hover:bg-surface-zen/20 transition-all">
+                  <span className="font-medium text-sm text-primary-dark">{unit}</span>
+                  <button onClick={() => handleDeleteUnit(unit)}
+                    className="p-1 text-text-secondary hover:text-error-zen hover:bg-error-zen/10 rounded transition-all"
+                    title="Xóa đơn vị">
+                    <Trash2 size={16} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {activeTab === 'users' && (
         <div className="space-y-4">
@@ -467,8 +548,7 @@ function getRoleDescription(role: Role): string {
   return descriptions[role] || '';
 }
 
-// ===== Menu Config Component =====
-function MenuConfig() {
+function MenuConfig({ units }: { units: string[] }) {
   const toast = useToast();
   const [menuItems, setMenuItems] = useState<any[]>([]);
   const [menuIngredients, setMenuIngredients] = useState<any[]>([]);
@@ -479,7 +559,7 @@ function MenuConfig() {
   const [searchTerm, setSearchTerm] = useState('');
 
   const [itemForm, setItemForm] = useState({
-    name: '', price: '', category: 'Đồ uống', unit: 'ly',
+    name: '', price: '', category: 'Đồ uống', unit: units[0] || 'Ly',
     defaultDiscount: '0', discountStart: '', discountEnd: '', isActive: true,
   });
 
@@ -725,24 +805,9 @@ function MenuConfig() {
                   { value: 'Tráng miệng', label: 'Tráng miệng' },
                   { value: 'Khác', label: 'Khác' },
                 ]} />
-              <div>
-                <label className="text-sm font-semibold text-primary-dark block mb-1.5">Đơn vị</label>
-                <input type="text" list="menu-item-units-list" value={itemForm.unit}
-                  onChange={(e: any) => setItemForm({ ...itemForm, unit: e.target.value })}
-                  placeholder="Chọn hoặc nhập..."
-                  className="w-full px-4 py-3 bg-white border border-surface-zen rounded-xl font-medium text-sm focus:ring-2 focus:ring-primary/30 outline-none transition-all" />
-                <datalist id="menu-item-units-list">
-                  <option value="Ly" />
-                  <option value="Chai" />
-                  <option value="Ổ" />
-                  <option value="Suất" />
-                  <option value="Phần" />
-                  <option value="Cái" />
-                  <option value="Thùng" />
-                  <option value="Lon" />
-                  <option value="Bịch" />
-                </datalist>
-              </div>
+              <Select label="Đơn vị" value={itemForm.unit}
+                onChange={(e: any) => setItemForm({ ...itemForm, unit: e.target.value })}
+                options={units.map(u => ({ value: u, label: u }))} />
             </div>
             <Input label="Giảm giá mặc định (%)" type="number" value={itemForm.defaultDiscount}
               onChange={(e: any) => setItemForm({ ...itemForm, defaultDiscount: e.target.value })} placeholder="0" />
@@ -851,13 +916,9 @@ function MenuConfig() {
                   { value: 'Tráng miệng', label: 'Tráng miệng' },
                   { value: 'Khác', label: 'Khác' },
                 ]} />
-              <div>
-                <label className="text-sm font-semibold text-primary-dark block mb-1.5">Đơn vị</label>
-                <input type="text" list="menu-item-units-list" value={showEditItem.unit}
-                  onChange={(e: any) => setShowEditItem({ ...showEditItem, unit: e.target.value })}
-                  placeholder="Chọn hoặc nhập..."
-                  className="w-full px-4 py-3 bg-white border border-surface-zen rounded-xl font-medium text-sm focus:ring-2 focus:ring-primary/30 outline-none transition-all" />
-              </div>
+              <Select label="Đơn vị" value={showEditItem.unit}
+                onChange={(e: any) => setShowEditItem({ ...showEditItem, unit: e.target.value })}
+                options={units.map(u => ({ value: u, label: u }))} />
             </div>
             <Input label="Giảm giá mặc định (%)" type="number" value={showEditItem.defaultDiscount}
               onChange={(e: any) => setShowEditItem({ ...showEditItem, defaultDiscount: e.target.value })} />
@@ -940,7 +1001,7 @@ function MenuConfig() {
 }
 
 // ===== Ingredient Config Component =====
-function IngredientConfig() {
+function IngredientConfig({ units }: { units: string[] }) {
   const toast = useToast();
   const [inventoryItems, setInventoryItems] = useState<any[]>([]);
   const [menuIngredients, setMenuIngredients] = useState<any[]>([]);
@@ -951,7 +1012,7 @@ function IngredientConfig() {
   const [searchTerm, setSearchTerm] = useState('');
 
   const [ingredientForm, setIngredientForm] = useState({
-    name: '', unit: 'kg', price: '', reorderLevel: '5',
+    name: '', unit: units[0] || 'Kg', price: '', reorderLevel: '5',
   });
 
   useEffect(() => {
@@ -1119,29 +1180,9 @@ function IngredientConfig() {
             <Input label="Tên nguyên liệu" value={ingredientForm.name}
               onChange={(e: any) => setIngredientForm({ ...ingredientForm, name: e.target.value })} placeholder="VD: Cà phê hạt..." />
             <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-sm font-semibold text-primary-dark block mb-1.5">Đơn vị</label>
-                <input type="text" list="ingredient-units-list" value={ingredientForm.unit}
-                  onChange={(e: any) => setIngredientForm({ ...ingredientForm, unit: e.target.value })}
-                  placeholder="Chọn hoặc nhập..."
-                  className="w-full px-4 py-3 bg-white border border-surface-zen rounded-xl font-medium text-sm focus:ring-2 focus:ring-primary/30 outline-none transition-all" />
-                <datalist id="ingredient-units-list">
-                  <option value="Kg" />
-                  <option value="Gram" />
-                  <option value="Lít" />
-                  <option value="Ml" />
-                  <option value="Lon" />
-                  <option value="Hộp" />
-                  <option value="Chai" />
-                  <option value="Bịch" />
-                  <option value="Ổ" />
-                  <option value="Cái" />
-                  <option value="Túi" />
-                  <option value="Gói" />
-                  <option value="Thùng" />
-                  <option value="Ly" />
-                </datalist>
-              </div>
+              <Select label="Đơn vị" value={ingredientForm.unit}
+                onChange={(e: any) => setIngredientForm({ ...ingredientForm, unit: e.target.value })}
+                options={units.map(u => ({ value: u, label: u }))} />
               <Input label="Giá nhập" type="number" value={ingredientForm.price}
                 onChange={(e: any) => setIngredientForm({ ...ingredientForm, price: e.target.value })} placeholder="0" />
             </div>
@@ -1162,13 +1203,9 @@ function IngredientConfig() {
             <Input label="Tên nguyên liệu" value={showEditIngredient.name}
               onChange={(e: any) => setShowEditIngredient({ ...showEditIngredient, name: e.target.value })} />
             <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-sm font-semibold text-primary-dark block mb-1.5">Đơn vị</label>
-                <input type="text" list="ingredient-units-list" value={showEditIngredient.unit}
-                  onChange={(e: any) => setShowEditIngredient({ ...showEditIngredient, unit: e.target.value })}
-                  placeholder="Chọn hoặc nhập..."
-                  className="w-full px-4 py-3 bg-white border border-surface-zen rounded-xl font-medium text-sm focus:ring-2 focus:ring-primary/30 outline-none transition-all" />
-              </div>
+              <Select label="Đơn vị" value={showEditIngredient.unit}
+                onChange={(e: any) => setShowEditIngredient({ ...showEditIngredient, unit: e.target.value })}
+                options={units.map(u => ({ value: u, label: u }))} />
               <Input label="Giá nhập" type="number" value={showEditIngredient.price}
                 onChange={(e: any) => setShowEditIngredient({ ...showEditIngredient, price: e.target.value })} />
             </div>
