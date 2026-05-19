@@ -106,8 +106,6 @@ export default function Settings() {
         u.displayName = userForm.displayName;
         u.role = userForm.role;
         u.status = userForm.status;
-        u.createdAt = Date.now();
-        u.updatedAt = Date.now();
       });
     });
     setShowAddUser(false);
@@ -126,7 +124,6 @@ export default function Settings() {
         if (showEditUser.password) {
           u.password = showEditUser.password;
         }
-        u.updatedAt = Date.now();
       });
     });
     setShowEditUser(null);
@@ -139,7 +136,6 @@ export default function Settings() {
       const record = await database.get<UserModel>('users').find(userId);
       await record.update((u: any) => {
         u.status = newStatus;
-        u.updatedAt = Date.now();
       });
     });
     const user = users.find((u: any) => u.id === userId);
@@ -532,8 +528,6 @@ function MenuConfig() {
         m.discountStart = discountStart;
         m.discountEnd = discountEnd;
         m.isActive = itemForm.isActive;
-        m.createdAt = Date.now();
-        m.updatedAt = Date.now();
       });
       // Save pending ingredients
       for (const ing of pendingIngredients) {
@@ -544,8 +538,6 @@ function MenuConfig() {
           r.materialName = ing.materialName;
           r.quantity = ing.quantity;
           r.unit = ing.unit;
-          r.createdAt = Date.now();
-          r.updatedAt = Date.now();
         });
       }
     });
@@ -570,7 +562,6 @@ function MenuConfig() {
         m.discountStart = discountStart;
         m.discountEnd = discountEnd;
         m.isActive = showEditItem.isActive;
-        m.updatedAt = Date.now();
       });
     });
     setShowEditItem(null);
@@ -595,7 +586,7 @@ function MenuConfig() {
   const toggleActive = async (id: string, current: boolean) => {
     await database.write(async () => {
       const record = await database.get<MenuItem>('menu_items').find(id);
-      await record.update((m: any) => { m.isActive = !current; m.updatedAt = Date.now(); });
+      await record.update((m: any) => { m.isActive = !current; });
     });
   };
 
@@ -610,8 +601,6 @@ function MenuConfig() {
         ing.materialName = mat?.name || ingredientForm.materialName;
         ing.quantity = ingredientForm.quantity;
         ing.unit = ingredientForm.unit || mat?.unit || '';
-        ing.createdAt = Date.now();
-        ing.updatedAt = Date.now();
       });
     });
     setIngredientForm({ materialId: '', materialName: '', quantity: '1', unit: '' });
@@ -988,8 +977,6 @@ function IngredientConfig() {
         r.isRawMaterial = true;
         r.locationType = 'MAIN_WAREHOUSE';
         r.truckId = '';
-        r.createdAt = Date.now();
-        r.updatedAt = Date.now();
       });
     });
     setShowAddIngredient(false);
@@ -1006,7 +993,6 @@ function IngredientConfig() {
         r.unit = showEditIngredient.unit;
         r.price = showEditIngredient.price;
         r.reorderLevel = showEditIngredient.reorderLevel;
-        r.updatedAt = Date.now();
       });
     });
     setShowEditIngredient(null);
