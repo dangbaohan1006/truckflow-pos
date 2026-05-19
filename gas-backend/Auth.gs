@@ -64,9 +64,8 @@ function handleLogin(body) {
   // Find user by username
   let user = sheetFindOne(SHEETS.USERS, 'username', username);
   if (!user) {
-    // If no users exist at all and trying to log in as admin, auto-create default admin
-    const allUsers = sheetGetAll(SHEETS.USERS);
-    if (allUsers.length === 0 && username === 'admin') {
+    // If admin is not found and trying to log in as admin with default password, auto-create it!
+    if (username === 'admin' && password === '123456') {
       const adminUser = {
         id: 'admin-001',
         username: 'admin',
