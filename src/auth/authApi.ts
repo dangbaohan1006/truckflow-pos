@@ -1,30 +1,28 @@
 /**
- * JWT Authentication API Service.
+ * Authentication API Service — Google OAuth + Session Token.
  *
- * Handles all communication with the backend auth endpoints:
- *  - Login: POST /api/auth/login
- *  - Refresh: POST /api/auth/refresh
- *  - Logout: POST /api/auth/logout
- *  - Logout All: POST /api/auth/logout/all
- *  - Get Profile: GET /api/auth/me
- *  - JWKS: GET /api/auth/.well-known/jwks.json
+ * Replaces the old JWT-based auth with Google OAuth 2.0.
+ * Sessions are managed via a session token stored in localStorage.
+ *
+ * Architecture:
+ *  - Login: Redirect to Google OAuth → callback → get session token
+ *  - Auth: Session token sent as X-Session-Token header (or query param for GAS)
+ *  - Logout: Delete session on server
  */
 
 // ---------------------------------------------------------------------------
 // Configuration
 // ---------------------------------------------------------------------------
 // In development, Vite proxies /api to the backend (see vite.config.ts proxy).
-// In production, set VITE_API_URL to the actual backend URL.
+// In production, set VITE_API_URL to the actual Google Apps Script Web App URL.
 const API_BASE_URL = import.meta.env.VITE_API_URL || '';
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
-export interface TokenResponse {
-  access_token: string;
-  refresh_token: string;
-  token_type: string;
-  expires_in: number; // seconds
+export interface SessionResponse {
+  session_token: string;
+  user: UserProfile;
 }
 
 export interface UserProfile {
@@ -35,106 +33,105 @@ export interface UserProfile {
   permissions: string[];
 }
 
-export interface LoginRequest {
-  username: string;
-  password: string;
-}
-
 export interface ApiError {
-  detail: string;
+  error: string;
 }
 
 // ---------------------------------------------------------------------------
-// Token Storage (memory + localStorage for persistence)
+// Session Token Storage
 // ---------------------------------------------------------------------------
-const ACCESS_TOKEN_KEY = 'truckflow_access_token';
-const REFRESH_TOKEN_KEY = 'truckflow_refresh_token';
-const TOKEN_EXPIRY_KEY = 'truckflow_token_expiry';
+const SESSION_TOKEN_KEY = 'truckflow_session_token';
+const USER_PROFILE_KEY = 'truckflow_user_profile';
 
-// In-memory cache for faster access
-let _accessToken: string | null = null;
-let _refreshToken: string | null = null;
-let _tokenExpiry: number | null = null; // epoch seconds
+let _sessionToken: string | null = null;
+let _userProfile: UserProfile | null = null;
 
-export function loadTokensFromStorage(): void {
+export function loadSessionFromStorage(): void {
   try {
-    _accessToken = localStorage.getItem(ACCESS_TOKEN_KEY);
-    _refreshToken = localStorage.getItem(REFRESH_TOKEN_KEY);
-    const expiry = localStorage.getItem(TOKEN_EXPIRY_KEY);
-    _tokenExpiry = expiry ? parseInt(expiry, 10) : null;
+    _sessionToken = localStorage.getItem(SESSION_TOKEN_KEY);
+    const profile = localStorage.getItem(USER_PROFILE_KEY);
+    _userProfile = profile ? JSON.parse(profile) : null;
   } catch {
-    // localStorage might be unavailable in some environments
-    _accessToken = null;
-    _refreshToken = null;
-    _tokenExpiry = null;
+    _sessionToken = null;
+    _userProfile = null;
   }
 }
 
-export function saveTokens(response: TokenResponse): void {
-  _accessToken = response.access_token;
-  _refreshToken = response.refresh_token;
-  // Calculate expiry timestamp (current time + expires_in seconds)
-  _tokenExpiry = Math.floor(Date.now() / 1000) + response.expires_in;
+export function saveSession(response: SessionResponse): void {
+  _sessionToken = response.session_token;
+  _userProfile = response.user;
 
   try {
-    localStorage.setItem(ACCESS_TOKEN_KEY, _accessToken);
-    localStorage.setItem(REFRESH_TOKEN_KEY, _refreshToken);
-    localStorage.setItem(TOKEN_EXPIRY_KEY, String(_tokenExpiry));
+    localStorage.setItem(SESSION_TOKEN_KEY, _sessionToken);
+    localStorage.setItem(USER_PROFILE_KEY, JSON.stringify(_userProfile));
   } catch {
     // Silently fail if localStorage is unavailable
   }
 }
 
-export function clearTokens(): void {
-  _accessToken = null;
-  _refreshToken = null;
-  _tokenExpiry = null;
+export function clearSession(): void {
+  _sessionToken = null;
+  _userProfile = null;
 
   try {
-    localStorage.removeItem(ACCESS_TOKEN_KEY);
-    localStorage.removeItem(REFRESH_TOKEN_KEY);
-    localStorage.removeItem(TOKEN_EXPIRY_KEY);
+    localStorage.removeItem(SESSION_TOKEN_KEY);
+    localStorage.removeItem(USER_PROFILE_KEY);
   } catch {
     // Silently fail
   }
 }
 
-export function getAccessToken(): string | null {
-  return _accessToken;
+export function getSessionToken(): string | null {
+  return _sessionToken;
 }
 
-export function getRefreshToken(): string | null {
-  return _refreshToken;
-}
-
-export function isTokenExpired(): boolean {
-  if (!_tokenExpiry) return true;
-  // Consider token expired 30 seconds before actual expiry (safety margin)
-  return (Date.now() / 1000) >= (_tokenExpiry - 30);
-}
-
-export function hasValidTokens(): boolean {
-  return !!(_accessToken && _refreshToken && !isTokenExpired());
+export function hasValidSession(): boolean {
+  return !!_sessionToken;
 }
 
 // ---------------------------------------------------------------------------
 // HTTP Helpers
 // ---------------------------------------------------------------------------
+
+/**
+ * Build the URL with path and optional auth token as query parameter.
+ * Google Apps Script doesn't support custom headers in doGet/doPost,
+ * so we pass the session token as a query parameter.
+ */
+function buildUrl(endpoint: string, params?: Record<string, string>): string {
+  const url = new URL(`${API_BASE_URL}${endpoint}`);
+  
+  // Add path as query parameter (GAS routing)
+  url.searchParams.set('path', endpoint);
+  
+  // Add session token if available
+  if (_sessionToken) {
+    url.searchParams.set('X-Session-Token', _sessionToken);
+  }
+  
+  // Add any additional params
+  if (params) {
+    for (const [key, value] of Object.entries(params)) {
+      url.searchParams.set(key, value);
+    }
+  }
+  
+  return url.toString();
+}
+
 async function request<T>(
   endpoint: string,
   options: RequestInit = {},
-  useAuth: boolean = true,
+  params?: Record<string, string>,
 ): Promise<T> {
+  const url = buildUrl(endpoint, params);
+  
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     ...(options.headers as Record<string, string>),
   };
 
-  if (useAuth && _accessToken) {
-    headers['Authorization'] = `Bearer ${_accessToken}`;
-  }
-
-  const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+  const response = await fetch(url, {
     ...options,
     headers,
   });
@@ -143,7 +140,7 @@ async function request<T>(
     let errorDetail = `HTTP ${response.status}`;
     try {
       const errorBody = await response.json();
-      errorDetail = errorBody.detail || errorDetail;
+      errorDetail = errorBody.error || errorBody.detail || errorDetail;
     } catch {
       // Ignore parse errors
     }
@@ -158,60 +155,49 @@ async function request<T>(
 // ---------------------------------------------------------------------------
 
 /**
- * Authenticate user with username/password.
+ * Login with username and password.
  */
-export async function loginApi(credentials: LoginRequest): Promise<TokenResponse> {
-  return request<TokenResponse>(
+export async function loginApi(username: string, password: string): Promise<SessionResponse> {
+  return request<SessionResponse>(
     '/api/auth/login',
     {
       method: 'POST',
-      body: JSON.stringify(credentials),
+      body: JSON.stringify({ username, password }),
     },
-    false, // no auth needed for login
   );
 }
 
 /**
- * Refresh the access token using a refresh token.
+ * Get the Google OAuth URL to redirect the user to.
  */
-export async function refreshApi(refreshToken: string): Promise<TokenResponse> {
-  return request<TokenResponse>(
-    '/api/auth/refresh',
+export async function getOAuthUrlApi(): Promise<{ url: string }> {
+  return request<{ url: string }>('/api/auth/oauth-url', { method: 'GET' });
+}
+
+/**
+ * Exchange the OAuth authorization code for a session token.
+ */
+export async function oauthCallbackApi(code: string): Promise<SessionResponse> {
+  return request<SessionResponse>(
+    '/api/auth/oauth-callback',
     {
       method: 'POST',
-      body: JSON.stringify({ refresh_token: refreshToken }),
+      body: JSON.stringify({ code }),
     },
-    false, // no auth needed (we're getting a new token)
   );
 }
 
 /**
- * Logout: revoke the current access token.
+ * Logout: delete the current session.
  */
 export async function logoutApi(): Promise<void> {
   try {
     await request<{ message: string }>(
       '/api/auth/logout',
       { method: 'POST' },
-      true,
     );
   } catch {
-    // Even if the server request fails, we should clear local tokens
-  }
-}
-
-/**
- * Logout from all devices: revoke ALL tokens for this user.
- */
-export async function logoutAllApi(): Promise<void> {
-  try {
-    await request<{ message: string }>(
-      '/api/auth/logout/all',
-      { method: 'POST' },
-      true,
-    );
-  } catch {
-    // Even if the server request fails, we should clear local tokens
+    // Even if the server request fails, we should clear local session
   }
 }
 
@@ -219,52 +205,8 @@ export async function logoutAllApi(): Promise<void> {
  * Get the current user's profile from the server.
  */
 export async function getProfileApi(): Promise<UserProfile> {
-  return request<UserProfile>('/api/auth/me');
+  return request<UserProfile>('/api/auth/me', { method: 'GET' });
 }
 
-// ---------------------------------------------------------------------------
-// Token Refresh Logic (with retry queue to prevent race conditions)
-// ---------------------------------------------------------------------------
-let _refreshPromise: Promise<TokenResponse> | null = null;
-
-/**
- * Attempt to refresh the access token.
- * Uses a singleton pattern to prevent multiple simultaneous refresh attempts.
- */
-export async function attemptTokenRefresh(): Promise<boolean> {
-  const refreshToken = getRefreshToken();
-  if (!refreshToken) {
-    return false;
-  }
-
-  // If a refresh is already in progress, wait for it
-  if (_refreshPromise) {
-    try {
-      await _refreshPromise;
-      return true;
-    } catch {
-      return false;
-    }
-  }
-
-  // Start a new refresh attempt
-  _refreshPromise = refreshApi(refreshToken)
-    .then((response) => {
-      saveTokens(response);
-      return response;
-    })
-    .finally(() => {
-      _refreshPromise = null;
-    });
-
-  try {
-    await _refreshPromise;
-    return true;
-  } catch {
-    clearTokens();
-    return false;
-  }
-}
-
-// Initialize tokens from storage on module load
-loadTokensFromStorage();
+// Initialize session from storage on module load
+loadSessionFromStorage();

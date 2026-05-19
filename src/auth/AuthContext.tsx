@@ -1,16 +1,15 @@
 /**
- * JWT Authentication Context.
+ * Authentication Context — Google OAuth + Session Token.
  *
- * Replaces the old session-based auth with JWT (Access Token + Refresh Token).
+ * Replaces the old JWT-based auth with Google OAuth 2.0.
  *
  * Architecture:
- *  - Access Token: Short-lived (15 min), stored in memory + localStorage.
- *  - Refresh Token: Long-lived (30 days), used to get new access tokens.
- *  - Auto-refresh: Silently refreshes the access token before it expires.
- *  - Logout: Revokes tokens via the backend API (Redis blacklist).
+ *  - Login: Redirect to Google OAuth → callback → get session token
+ *  - Auth: Session token stored in localStorage, sent as X-Session-Token
+ *  - Logout: Delete session on server + clear local state
  */
 
-import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { database } from '../database/index.js';
 import User from '../database/models/User.js';
 import { ROLES, ROLE_PERMISSIONS, type Role, type Permission } from './permissions.js';
@@ -18,19 +17,18 @@ import { initializeDefaultUsers } from '../database/initializeDefaultUsers.js';
 import { seedTestData } from '../database/seedTestData.js';
 import { seedReportsFinanceHRData } from '../database/seedReportsFinanceHR.js';
 
-// Import JWT auth API
+// Import session-based auth API
 import {
   loginApi,
+  getOAuthUrlApi,
+  oauthCallbackApi,
   logoutApi,
-  logoutAllApi,
   getProfileApi,
-  saveTokens,
-  clearTokens,
-  loadTokensFromStorage,
-  hasValidTokens,
-  isTokenExpired,
-  attemptTokenRefresh,
-  getAccessToken,
+  saveSession,
+  clearSession,
+  loadSessionFromStorage,
+  hasValidSession,
+  getSessionToken,
   type UserProfile,
 } from './authApi.js';
 
@@ -46,30 +44,31 @@ interface AuthContextType {
   user: AuthUser | null;
   loading: boolean;
   login: (username: string, password: string) => Promise<{ success: boolean; error?: string }>;
+  loginWithGoogle: () => Promise<void>;
+  handleOAuthRedirect: (code: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
-  logoutAll: () => Promise<void>;
   hasPermission: (permission: Permission) => boolean;
   hasAnyPermission: (permissions: Permission[]) => boolean;
   isAdmin: boolean;
-  getAccessToken: () => string | null;
+  getSessionToken: () => string | null;
 }
 
 const AuthContext = createContext<AuthContextType>({
   user: null,
   loading: true,
   login: async () => ({ success: false }),
+  loginWithGoogle: async () => {},
+  handleOAuthRedirect: async () => ({ success: false }),
   logout: () => {},
-  logoutAll: async () => {},
   hasPermission: () => false,
   hasAnyPermission: () => false,
   isAdmin: false,
-  getAccessToken: () => null,
+  getSessionToken: () => null,
 });
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
-  const refreshIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // ---------------------------------------------------------------------------
   // Helper: Convert UserProfile from API to AuthUser
@@ -85,65 +84,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   // ---------------------------------------------------------------------------
-  // Helper: Try to restore session from stored tokens
+  // Helper: Try to restore session from stored token
   // ---------------------------------------------------------------------------
   const restoreSession = useCallback(async (): Promise<boolean> => {
-    // Load tokens from localStorage
-    loadTokensFromStorage();
+    // Load session from localStorage
+    loadSessionFromStorage();
 
-    if (!hasValidTokens()) {
-      // Try to refresh if we have a refresh token but access token is expired
-      const refreshed = await attemptTokenRefresh();
-      if (!refreshed) {
-        return false;
-      }
+    if (!hasValidSession()) {
+      return false;
     }
 
-    // We have a valid access token, fetch the user profile
+    // We have a session token, verify it by fetching the user profile
     try {
       const profile = await getProfileApi();
       const authUser = profileToAuthUser(profile);
       setUser(authUser);
-      console.log('✅ JWT session restored for user:', authUser.username);
+      console.log('✅ Session restored for user:', authUser.username);
       return true;
     } catch (error) {
       console.error('❌ Failed to restore session:', error);
-      clearTokens();
+      clearSession();
       return false;
     }
   }, [profileToAuthUser]);
-
-  // ---------------------------------------------------------------------------
-  // Auto-refresh timer: refresh token before it expires
-  // ---------------------------------------------------------------------------
-  const startRefreshTimer = useCallback(() => {
-    // Clear any existing timer
-    if (refreshIntervalRef.current) {
-      clearInterval(refreshIntervalRef.current);
-    }
-
-    // Check every 5 minutes if token needs refresh
-    refreshIntervalRef.current = setInterval(async () => {
-      if (isTokenExpired()) {
-        console.log('🔄 Token expired, attempting refresh...');
-        const success = await attemptTokenRefresh();
-        if (!success) {
-          console.error('❌ Token refresh failed, logging out');
-          setUser(null);
-          clearTokens();
-        } else {
-          console.log('✅ Token refreshed successfully');
-        }
-      }
-    }, 5 * 60 * 1000); // Every 5 minutes
-  }, []);
-
-  const stopRefreshTimer = useCallback(() => {
-    if (refreshIntervalRef.current) {
-      clearInterval(refreshIntervalRef.current);
-      refreshIntervalRef.current = null;
-    }
-  }, []);
 
   // ---------------------------------------------------------------------------
   // Initialize app on mount
@@ -168,10 +131,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         console.error('❌ Error during app initialization:', error);
       }
 
-      // Try to restore JWT session
+      // Try to restore session
       const restored = await restoreSession();
-      if (restored) {
-        startRefreshTimer();
+      if (!restored) {
+        console.log('ℹ️ No saved session found');
       }
 
       setLoading(false);
@@ -179,74 +142,78 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
 
     initializeApp();
-
-    // Cleanup on unmount
-    return () => {
-      stopRefreshTimer();
-    };
-  }, [restoreSession, startRefreshTimer, stopRefreshTimer]);
+  }, [restoreSession]);
 
   // ---------------------------------------------------------------------------
-  // Login
+  // Login with username/password
   // ---------------------------------------------------------------------------
   const login = useCallback(async (username: string, password: string) => {
     try {
-      // 1. Authenticate via backend API (JWT)
-      const tokenResponse = await loginApi({ username, password });
-
-      // 2. Save tokens to memory + localStorage
-      saveTokens(tokenResponse);
-
-      // 3. Fetch user profile from the server
-      const profile = await getProfileApi();
-      const authUser = profileToAuthUser(profile);
-
-      // 4. Set user state
+      const sessionResponse = await loginApi(username, password);
+      
+      // Save session to localStorage
+      saveSession(sessionResponse);
+      
+      // Set user state
+      const authUser = profileToAuthUser(sessionResponse.user);
       setUser(authUser);
-
-      // 5. Start auto-refresh timer
-      startRefreshTimer();
-
-      console.log('✅ JWT login successful for user:', authUser.username);
+      
+      console.log('✅ Login successful for user:', authUser.username);
       return { success: true };
     } catch (e: any) {
       console.error('❌ Login failed:', e.message);
-      clearTokens();
       return { success: false, error: e.message || 'Lỗi đăng nhập' };
     }
-  }, [profileToAuthUser, startRefreshTimer]);
+  }, [profileToAuthUser]);
+
+  // ---------------------------------------------------------------------------
+  // Login with Google
+  // ---------------------------------------------------------------------------
+  const loginWithGoogle = useCallback(async () => {
+    try {
+      const oauthUrl = await getOAuthUrlApi();
+      window.location.href = oauthUrl.url;
+    } catch (e: any) {
+      console.error('❌ Google login failed:', e.message);
+    }
+  }, []);
+
+  // ---------------------------------------------------------------------------
+  // Handle OAuth Redirect (called from the callback page)
+  // ---------------------------------------------------------------------------
+  const handleOAuthRedirect = useCallback(async (code: string) => {
+    try {
+      const sessionResponse = await oauthCallbackApi(code);
+      
+      // Save session to localStorage
+      saveSession(sessionResponse);
+      
+      // Set user state
+      const authUser = profileToAuthUser(sessionResponse.user);
+      setUser(authUser);
+      
+      console.log('✅ Google OAuth login successful for user:', authUser.username);
+      return { success: true };
+    } catch (e: any) {
+      console.error('❌ OAuth callback failed:', e.message);
+      clearSession();
+      return { success: false, error: e.message || 'Lỗi xác thực Google' };
+    }
+  }, [profileToAuthUser]);
 
   // ---------------------------------------------------------------------------
   // Logout
   // ---------------------------------------------------------------------------
   const logout = useCallback(() => {
-    // 1. Revoke token on server (best-effort)
+    // 1. Revoke session on server (best-effort)
     logoutApi().catch(() => {});
 
     // 2. Clear local state
     setUser(null);
-    clearTokens();
-    stopRefreshTimer();
+    clearSession();
 
     console.log('✅ Logged out');
-  }, [stopRefreshTimer]);
-
-  // ---------------------------------------------------------------------------
-  // Logout from all devices
-  // ---------------------------------------------------------------------------
-  const logoutAll = useCallback(async () => {
-    try {
-      await logoutAllApi();
-    } catch {
-      // Best-effort
-    }
-
-    setUser(null);
-    clearTokens();
-    stopRefreshTimer();
-
-    console.log('✅ Logged out from all devices');
-  }, [stopRefreshTimer]);
+  }, []);
 
   // ---------------------------------------------------------------------------
   // Permission checks
@@ -274,12 +241,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         user,
         loading,
         login,
+        loginWithGoogle,
+        handleOAuthRedirect,
         logout,
-        logoutAll,
         hasPermission,
         hasAnyPermission,
         isAdmin: user?.role === ROLES.SYSTEM_ADMIN,
-        getAccessToken,
+        getSessionToken,
       }}
     >
       {children}

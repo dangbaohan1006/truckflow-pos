@@ -33,6 +33,14 @@ app.add_middleware(
 from src.modules.sales.router import router as sales_router
 app.include_router(sales_router, prefix="/api/sales", tags=["Sales Sync"])
 
+# Import và gắn Router của module Inventory (operations: receive/issue/count/adjust)
+from src.modules.inventory.router import router as inventory_router
+app.include_router(inventory_router)
+
+# Import và gắn Router của module Inventory Sync (WatermelonDB pull/push)
+from src.modules.inventory.sync_router import router as inventory_sync_router
+app.include_router(inventory_sync_router)
+
 # Import và gắn Router của module Auth (JWT Authentication)
 from src.modules.auth.router import router as auth_router
 app.include_router(auth_router)

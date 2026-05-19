@@ -11,6 +11,7 @@ import StockMovement from '../database/models/StockMovement.js';
 import BomRecord from '../database/models/BomRecord.js';
 import Supplier from '../database/models/Supplier.js';
 import TruckModel from '../database/models/Truck.js';
+import { receiveInventory, issueInventory, countInventory, adjustInventory } from '../database/inventoryApi.js';
 import { formatCurrency, formatDateTime, generateId } from '../shared/utils.js';
 import { Modal, Input, Select, TabButton } from '../shared/components.js';
 import { useToast } from '../shared/ToastContext.js';
@@ -27,6 +28,8 @@ export default function Inventory() {
   const [showReceive, setShowReceive] = useState(false);
   const [showSpoilage, setShowSpoilage] = useState(false);
   const [showTransfer, setShowTransfer] = useState(false);
+  const [showCount, setShowCount] = useState(false);
+  const [showAdjust, setShowAdjust] = useState(false);
   const [showBom, setShowBom] = useState(false);
   const [showSupplier, setShowSupplier] = useState(false);
   const [showTruck, setShowTruck] = useState(false);
@@ -37,6 +40,8 @@ export default function Inventory() {
   const [receiveData, setReceiveData] = useState({ itemId: '', qty: '0', note: '', supplierId: '' });
   const [spoilageData, setSpoilageData] = useState({ itemId: '', qty: '0', note: '' });
   const [transferData, setTransferData] = useState({ itemId: '', qty: '0', fromLocation: 'MAIN_WAREHOUSE', toTruck: '', note: '' });
+  const [countData, setCountData] = useState({ itemId: '', countedQty: '0', note: '' });
+  const [adjustData, setAdjustData] = useState({ itemId: '', deltaQty: '0', note: '' });
   const [bomData, setBomData] = useState({ productId: '', productName: '', materialId: '', materialName: '', qty: '1', unit: 'pcs' });
   const [supplierData, setSupplierData] = useState({ name: '', phone: '', address: '', note: '' });
   const [truckData, setTruckData] = useState({ name: '', code: '', status: 'ACTIVE', location: '' });
@@ -59,10 +64,13 @@ export default function Inventory() {
     : truckItems.filter((i: any) => (i.truckId === selectedTruck) && (!searchTerm || i.name.toLowerCase().includes(searchTerm.toLowerCase())));
 
   const addItem = async () => {
+    const sku = 'SKU-' + Date.now();
+    const shouldSyncInitialStock = parseFloat(newItem.qty) > 0;
+    const initialStockLocation = newItem.locationType === 'TRUCK' ? newItem.truckId : 'MAIN_WAREHOUSE';
     await database.write(async () => {
       const item = await database.get<InventoryItem>('inventory_items').create((i: any) => {
         i.name = newItem.name;
-        i.sku = 'SKU-' + Date.now();
+        i.sku = sku;
         i.unit = newItem.unit;
         i.quantity = newItem.qty;
         i.price = newItem.price;
@@ -85,6 +93,14 @@ export default function Inventory() {
         });
       }
     });
+    if (shouldSyncInitialStock) {
+      receiveInventory(
+        [{ product_id: sku, quantity: newItem.qty }],
+        initialStockLocation,
+        'initial-stock',
+        `Nhập kho ${newItem.locationType === 'TRUCK' ? 'xe' : 'tổng'} ban đầu`,
+      ).catch((error) => console.warn('Inventory sync failed:', error.message));
+    }
     setShowAddItem(false);
     setNewItem({ name: '', unit: 'pcs', qty: '0', price: '0', category: '', isRawMaterial: false, reorderLevel: '10', locationType: 'MAIN_WAREHOUSE', truckId: '' });
     toast.success(`Đã thêm hàng hóa "${newItem.name}"`);
@@ -109,6 +125,14 @@ export default function Inventory() {
         m.updatedAt = now;
       });
     });
+    receiveInventory(
+      [{ product_id: items.find((i: any) => i.id === receiveData.itemId)?.sku || receiveData.itemId, quantity: receiveData.qty }],
+      items.find((i: any) => i.id === receiveData.itemId)?.locationType === 'TRUCK'
+        ? items.find((i: any) => i.id === receiveData.itemId)?.truckId
+        : 'MAIN_WAREHOUSE',
+      receiveData.supplierId || undefined,
+      receiveData.note || 'Nhập kho',
+    ).catch((error) => console.warn('Inventory sync failed:', error.message));
     setShowReceive(false);
     setReceiveData({ itemId: '', qty: '0', note: '', supplierId: '' });
     const receivedItem = items.find((i: any) => i.id === receiveData.itemId);
@@ -133,6 +157,14 @@ export default function Inventory() {
         m.updatedAt = now;
       });
     });
+    issueInventory(
+      [{ product_id: items.find((i: any) => i.id === spoilageData.itemId)?.sku || spoilageData.itemId, quantity: spoilageData.qty }],
+      items.find((i: any) => i.id === spoilageData.itemId)?.locationType === 'TRUCK'
+        ? items.find((i: any) => i.id === spoilageData.itemId)?.truckId
+        : 'MAIN_WAREHOUSE',
+      'spoilage',
+      spoilageData.note || 'Hàng hỏng/hết hạn',
+    ).catch((error) => console.warn('Inventory sync failed:', error.message));
     setShowSpoilage(false);
     setSpoilageData({ itemId: '', qty: '0', note: '' });
     const spoiledItem = items.find((i: any) => i.id === spoilageData.itemId);
@@ -197,9 +229,89 @@ export default function Inventory() {
         m.updatedAt = now + 1;
       });
     });
+    const sourceItem = items.find((i: any) => i.id === transferData.itemId);
+    if (sourceItem) {
+      issueInventory(
+        [{ product_id: sourceItem.sku, quantity: transferData.qty }],
+        'MAIN_WAREHOUSE',
+        transferData.toTruck || undefined,
+        transferData.note || `Xuất kho tổng → xe ${transferData.toTruck}`,
+      ).catch((error) => console.warn('Inventory sync failed:', error.message));
+      receiveInventory(
+        [{ product_id: sourceItem.sku, quantity: transferData.qty }],
+        transferData.toTruck || undefined,
+        transferData.toTruck || undefined,
+        `Nhập kho xe ${transferData.toTruck} từ kho tổng`,
+      ).catch((error) => console.warn('Inventory sync failed:', error.message));
+    }
     setShowTransfer(false);
     setTransferData({ itemId: '', qty: '0', fromLocation: 'MAIN_WAREHOUSE', toTruck: '', note: '' });
     toast.success(`Đã chuyển ${transferData.qty} hàng từ kho tổng đến xe`);
+  };
+
+  const countStock = async () => {
+    const item = items.find((entry: any) => entry.id === countData.itemId);
+    if (!item) return;
+
+    const now = Date.now();
+    const countedQty = parseFloat(countData.countedQty || '0');
+    await database.write(async () => {
+      await item.update((i: any) => { i.quantity = String(Math.max(0, countedQty)); });
+      await database.get<StockMovement>('stock_movements').create((m: any) => {
+        m._raw.id = generateId();
+        m.itemId = item.id;
+        m.itemName = item.name;
+        m.quantity = String(countedQty - parseFloat(item.quantity));
+        m.type = 'ADJUSTMENT';
+        m.note = countData.note || 'Kiểm kê';
+        m.createdAt = now;
+        m.updatedAt = now;
+      });
+    });
+
+    countInventory(
+      [{ product_id: item.sku, counted_quantity: countData.countedQty }],
+      item.locationType === 'TRUCK' ? item.truckId : 'MAIN_WAREHOUSE',
+      'count',
+      countData.note || 'Kiểm kê',
+    ).catch((error) => console.warn('Inventory sync failed:', error.message));
+
+    setShowCount(false);
+    setCountData({ itemId: '', countedQty: '0', note: '' });
+    toast.success(`Đã kiểm kê ${item.name}`);
+  };
+
+  const adjustStock = async () => {
+    const item = items.find((entry: any) => entry.id === adjustData.itemId);
+    if (!item) return;
+
+    const now = Date.now();
+    const deltaQty = parseFloat(adjustData.deltaQty || '0');
+    const newQty = Math.max(0, parseFloat(item.quantity) + deltaQty);
+    await database.write(async () => {
+      await item.update((i: any) => { i.quantity = newQty.toString(); });
+      await database.get<StockMovement>('stock_movements').create((m: any) => {
+        m._raw.id = generateId();
+        m.itemId = item.id;
+        m.itemName = item.name;
+        m.quantity = adjustData.deltaQty;
+        m.type = 'ADJUSTMENT';
+        m.note = adjustData.note || 'Điều chỉnh tồn kho';
+        m.createdAt = now;
+        m.updatedAt = now;
+      });
+    });
+
+    adjustInventory(
+      [{ product_id: item.sku, delta_quantity: adjustData.deltaQty }],
+      item.locationType === 'TRUCK' ? item.truckId : 'MAIN_WAREHOUSE',
+      'adjust',
+      adjustData.note || 'Điều chỉnh tồn kho',
+    ).catch((error) => console.warn('Inventory sync failed:', error.message));
+
+    setShowAdjust(false);
+    setAdjustData({ itemId: '', deltaQty: '0', note: '' });
+    toast.success(`Đã điều chỉnh tồn kho ${item.name}`);
   };
 
   const addBom = async () => {
@@ -313,6 +425,12 @@ export default function Inventory() {
             <>
               <button onClick={() => setShowReceive(true)} className="px-4 py-2 bg-success-zen text-white rounded-lg text-sm font-medium hover:bg-green-700 transition-all flex items-center space-x-1">
                 <PackagePlus size={16} /><span>Nhập kho</span>
+              </button>
+              <button onClick={() => setShowCount(true)} className="px-4 py-2 bg-sky-600 text-white rounded-lg text-sm font-medium hover:bg-sky-700 transition-all flex items-center space-x-1">
+                <Check size={16} /><span>Kiểm kê</span>
+              </button>
+              <button onClick={() => setShowAdjust(true)} className="px-4 py-2 bg-amber-600 text-white rounded-lg text-sm font-medium hover:bg-amber-700 transition-all flex items-center space-x-1">
+                <ArrowRight size={16} /><span>Điều chỉnh</span>
               </button>
               <button onClick={() => setShowSpoilage(true)} className="px-4 py-2 bg-error-zen text-white rounded-lg text-sm font-medium hover:bg-red-700 transition-all flex items-center space-x-1">
                 <PackageMinus size={16} /><span>Hàng hỏng</span>
@@ -592,6 +710,38 @@ export default function Inventory() {
             <div className="flex justify-end space-x-2 pt-2">
               <button onClick={() => setShowReceive(false)} className="px-4 py-2 bg-surface-zen text-text-secondary rounded-lg text-sm font-medium hover:bg-gray-200 transition-all">Hủy</button>
               <button onClick={receiveStock} className="px-4 py-2 bg-success-zen text-white rounded-lg text-sm font-medium hover:bg-green-700 transition-all">Xác nhận nhập</button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* Modal: Count Stock */}
+      {showCount && (
+        <Modal title="Kiểm kê tồn kho" onClose={() => setShowCount(false)}>
+          <div className="space-y-3">
+            <Select label="Chọn hàng hóa" value={countData.itemId} onChange={(e: any) => setCountData({ ...countData, itemId: e.target.value })}
+              options={[{ value: '', label: '-- Chọn --' }, ...items.map((i: any) => ({ value: i.id, label: `${i.name} (tồn: ${i.quantity} ${i.unit})` }))]} />
+            <Input label="Số lượng thực tế" type="number" value={countData.countedQty} onChange={(e: any) => setCountData({ ...countData, countedQty: e.target.value })} placeholder="0" />
+            <Input label="Ghi chú" value={countData.note} onChange={(e: any) => setCountData({ ...countData, note: e.target.value })} placeholder="Ghi chú kiểm kê" />
+            <div className="flex justify-end space-x-2 pt-2">
+              <button onClick={() => setShowCount(false)} className="px-4 py-2 bg-surface-zen text-text-secondary rounded-lg text-sm font-medium hover:bg-gray-200 transition-all">Hủy</button>
+              <button onClick={countStock} className="px-4 py-2 bg-sky-600 text-white rounded-lg text-sm font-medium hover:bg-sky-700 transition-all">Xác nhận kiểm kê</button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* Modal: Adjust Stock */}
+      {showAdjust && (
+        <Modal title="Điều chỉnh tồn kho" onClose={() => setShowAdjust(false)}>
+          <div className="space-y-3">
+            <Select label="Chọn hàng hóa" value={adjustData.itemId} onChange={(e: any) => setAdjustData({ ...adjustData, itemId: e.target.value })}
+              options={[{ value: '', label: '-- Chọn --' }, ...items.map((i: any) => ({ value: i.id, label: `${i.name} (tồn: ${i.quantity} ${i.unit})` }))]} />
+            <Input label="Chênh lệch số lượng" type="number" value={adjustData.deltaQty} onChange={(e: any) => setAdjustData({ ...adjustData, deltaQty: e.target.value })} placeholder="VD: 2 hoặc -1" />
+            <Input label="Ghi chú" value={adjustData.note} onChange={(e: any) => setAdjustData({ ...adjustData, note: e.target.value })} placeholder="Ghi chú điều chỉnh" />
+            <div className="flex justify-end space-x-2 pt-2">
+              <button onClick={() => setShowAdjust(false)} className="px-4 py-2 bg-surface-zen text-text-secondary rounded-lg text-sm font-medium hover:bg-gray-200 transition-all">Hủy</button>
+              <button onClick={adjustStock} className="px-4 py-2 bg-amber-600 text-white rounded-lg text-sm font-medium hover:bg-amber-700 transition-all">Xác nhận điều chỉnh</button>
             </div>
           </div>
         </Modal>

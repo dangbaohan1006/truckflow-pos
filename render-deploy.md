@@ -4,6 +4,90 @@ This file contains copy-paste friendly steps to deploy the frontend to Vercel an
 
 ---
 
+## Luồng dữ liệu hiện tại
+
+```mermaid
+flowchart LR
+	subgraph Client["Client / Frontend"]
+		UI["React UI"]
+		LocalDB["WatermelonDB + LokiJS\nlocal offline store"]
+		Sync["Sync service"]
+		UI --> LocalDB
+		UI --> Sync
+	end
+
+	subgraph Backend["Backend FastAPI"]
+		API["/api/auth\n/api/sales/sync\n/api/health"]
+		Auth["JWT auth + blacklist"]
+		Sales["Sales / sync handlers"]
+		Inventory["Inventory / BOM handlers"]
+		Worker["Celery worker"]
+		API --> Auth
+		API --> Sales
+		API --> Inventory
+		Sales --> Worker
+	end
+
+	subgraph Infra["Persisted infrastructure"]
+		Postgres[("PostgreSQL")]
+		Redis[("Redis")]
+		Outbox[("Outbox table")]
+	end
+
+	Sync <--> |HTTP JSON| API
+	LocalDB <--> |read / write| Sync
+	API --> Postgres
+	API --> Redis
+	Sales --> Outbox
+	Worker <--> Redis
+	Worker --> Postgres
+
+	subgraph Future["Future storage adapter"]
+		Sheets[("Google Sheets")]
+	end
+
+	Sales -. "optional adapter later" .-> Sheets
+	Inventory -. "optional adapter later" .-> Sheets
+```
+
+Ý nghĩa ngắn gọn:
+
+- Người dùng thao tác trên frontend, dữ liệu đầu tiên đi vào local store để chạy offline-first.
+- Sync service đẩy/nhận dữ liệu qua FastAPI.
+- Backend hiện ghi vào PostgreSQL, dùng Redis cho auth blacklist và Celery.
+- Nếu sau này muốn đi qua Google Sheets trước, chỉ cần thay lớp adapter ở backend, không đụng UI và logic nghiệp vụ chính.
+
+## Kế hoạch chuyển sang Google Sheets trước
+
+### Pha 1: Dựng lớp lưu trữ tạm bằng Google Sheets
+
+- Giữ frontend, local store, và API contract hiện tại không đổi.
+- Thêm một lớp repository/service ở backend để mọi thao tác ghi/đọc đi qua một interface chung.
+- Implement adapter Google Sheets cho các luồng cần lưu tạm như đơn hàng, inventory snapshot, báo cáo, hoặc log.
+- Chuẩn hoá mỗi bản ghi với `id`, `created_at`, `updated_at`, `source`, `sync_status` để sau này migrate dễ.
+- Chỉ dùng Google Sheets cho dữ liệu ít rủi ro, dữ liệu báo cáo, staging, hoặc giai đoạn pilot.
+
+### Pha 2: Chạy thử và khóa contract dữ liệu
+
+- Test các luồng thật trên frontend: tạo đơn, đồng bộ, xem lịch sử, và kiểm tra lỗi mạng.
+- Đảm bảo backend không phụ thuộc trực tiếp vào Google Sheets SDK trong business logic.
+- Ghi rõ schema cột của từng sheet và map 1-1 với model nội bộ.
+- Thêm logging để biết record nào đã ghi thành công, record nào cần retry.
+
+### Pha 3: Chuyển sang database khác khi đã ổn
+
+- Giữ nguyên interface repository/service.
+- Viết adapter mới cho PostgreSQL, MySQL, Supabase, hoặc database khác.
+- Dùng dữ liệu đã chuẩn hoá từ Sheets để backfill/migrate sang DB mới.
+- Chỉ đổi cấu hình adapter theo môi trường, không đổi UI hay rule nghiệp vụ.
+
+### Nguyên tắc để không bị khóa vào Sheets
+
+- Không gọi Google Sheets API từ component UI.
+- Không rải logic format sheet khắp codebase.
+- Không dùng tên cột Sheets làm nguồn sự thật cho nghiệp vụ.
+- Mọi validate, mapping, và retry nằm ở backend.
+
 ## 1) Frontend -> Vercel
 
 Prerequisites: GitHub repo (or connect Vercel to your repo), Vercel account.
