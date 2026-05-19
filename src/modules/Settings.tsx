@@ -402,37 +402,6 @@ export default function Settings() {
               <p>Phân quyền: RBAC với 8 vai trò</p>
               <p>© 2026 TruckFlow. All rights reserved.</p>
             </div>
-            <div className="flex flex-col items-center space-y-3 mt-6">
-              <button onClick={createTestData}
-                className="px-6 py-3 bg-accent text-white rounded-xl font-medium hover:bg-primary-dark transition-all">
-                Import dữ liệu test vào hệ thống
-              </button>
-              {seedMessage && (
-                <p className="text-sm text-success-zen font-medium">{seedMessage}</p>
-              )}
-            </div>
-            <div className="flex flex-col items-center space-y-3 mt-4">
-              <button onClick={async () => {
-                const result = await seedMaterialsReportData({ force: true });
-                setMaterialsSeedMessage(result.message);
-                setTimeout(() => setMaterialsSeedMessage(''), 4000);
-                toast.success(result.message || 'Đã import dữ liệu test báo cáo nguyên liệu');
-              }}
-                className="px-6 py-3 bg-primary text-white rounded-xl font-medium hover:bg-primary-dark transition-all">
-                Import dữ liệu test Báo cáo Nguyên liệu
-              </button>
-              {materialsSeedMessage && (
-                <p className="text-sm text-success-zen font-medium">{materialsSeedMessage}</p>
-              )}
-            </div>
-            <div className="flex flex-col items-center space-y-3 mt-8 pt-6 border-t border-error-zen/10">
-              <p className="text-xs text-text-secondary">Khu vực nguy hiểm (Dành cho sản xuất)</p>
-              <button onClick={resetDatabase}
-                className="px-6 py-3 bg-error-zen text-white rounded-xl font-medium hover:bg-red-700 transition-all flex items-center space-x-2 shadow-lg shadow-error-zen/20">
-                <Trash2 size={18} />
-                <span>Xóa toàn bộ dữ liệu & Đưa về trống</span>
-              </button>
-            </div>
           </div>
         </div>
       )}
