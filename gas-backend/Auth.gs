@@ -62,9 +62,34 @@ function handleLogin(body) {
   }
 
   // Find user by username
-  const user = sheetFindOne(SHEETS.USERS, 'username', username);
+  let user = sheetFindOne(SHEETS.USERS, 'username', username);
   if (!user) {
-    return { error: 'Sai tên đăng nhập hoặc mật khẩu', status: 401 };
+    // If no users exist at all and trying to log in as admin, auto-create default admin
+    const allUsers = sheetGetAll(SHEETS.USERS);
+    if (allUsers.length === 0 && username === 'admin') {
+      const adminUser = {
+        id: 'admin-001',
+        username: 'admin',
+        password: '123456',
+        email: 'admin@truckflow.com',
+        name: 'System Admin',
+        role: 'SYSTEM_ADMIN',
+        permissions: JSON.stringify([
+          'user:create', 'user:edit', 'user:delete', 'user:view', 'user:assign_role',
+          'settings:store', 'settings:printer', 'settings:sync', 'settings:template', 'settings:ingredient',
+          'sales:create', 'sales:edit', 'sales:cancel', 'sales:payment', 'sales:refund', 'sales:print', 'sales:view', 'sales:view_all',
+          'inventory:receive', 'inventory:issue', 'inventory:count', 'inventory:adjust', 'inventory:spoilage',
+          'inventory:approve', 'inventory:view', 'inventory:bom', 'inventory:supplier', 'inventory:truck',
+          'finance:income', 'finance:expense', 'finance:approve', 'finance:book', 'finance:lock', 'finance:view',
+          'hr:employee', 'hr:attendance', 'hr:advance', 'hr:salary', 'hr:approve_salary', 'hr:view',
+          'report:view', 'report:export', 'system:admin',
+        ]),
+        createdAt: new Date().toISOString(),
+      };
+      user = sheetInsert(SHEETS.USERS, adminUser);
+    } else {
+      return { error: 'Sai tên đăng nhập hoặc mật khẩu', status: 401 };
+    }
   }
 
   // Check password
