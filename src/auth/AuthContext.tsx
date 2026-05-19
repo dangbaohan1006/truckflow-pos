@@ -120,13 +120,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         await initializeDefaultUsers();
         console.log('✅ Default users initialized');
 
-        console.log('⏳ Seeding test data...');
-        await seedTestData();
-        console.log('✅ Test data seeded');
-
-        console.log('⏳ Seeding Reports/Finance/HR test data...');
-        await seedReportsFinanceHRData();
-        console.log('✅ Reports/Finance/HR test data seeded');
+        // Test data seeding disabled for production clean database
+        console.log('ℹ️ Seeding test data skipped (production mode)');
       } catch (error) {
         console.error('❌ Error during app initialization:', error);
       }
