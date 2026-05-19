@@ -26,11 +26,6 @@ export async function initializeDefaultUsers() {
     await database.write(async () => {
       const userDefs = [
         { username: 'admin', password: '123456', displayName: 'Administrator', role: 'SYSTEM_ADMIN' },
-        { username: 'manager', password: '123456', displayName: 'Quản lý', role: 'STORE_MANAGER' },
-        { username: 'cashier', password: '123456', displayName: 'Thu ngân', role: 'CASHIER' },
-        { username: 'warehouse', password: '123456', displayName: 'Nhân viên kho', role: 'WAREHOUSE' },
-        { username: 'hr', password: '123456', displayName: 'Nhân sự', role: 'HR' },
-        { username: 'accountant', password: '123456', displayName: 'Kế toán', role: 'ACCOUNTANT' },
       ];
 
       for (const def of userDefs) {
