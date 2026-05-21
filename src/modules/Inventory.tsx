@@ -64,307 +64,484 @@ export default function Inventory() {
     : truckItems.filter((i: any) => (i.truckId === selectedTruck) && (!searchTerm || i.name.toLowerCase().includes(searchTerm.toLowerCase())));
 
   const addItem = async () => {
-    const sku = 'SKU-' + Date.now();
-    const shouldSyncInitialStock = parseFloat(newItem.qty) > 0;
-    const initialStockLocation = newItem.locationType === 'TRUCK' ? newItem.truckId : 'MAIN_WAREHOUSE';
-    await database.write(async () => {
-      const item = await database.get<InventoryItem>('inventory_items').create((i: any) => {
-        i.name = newItem.name;
-        i.sku = sku;
-        i.unit = newItem.unit;
-        i.quantity = newItem.qty;
-        i.price = newItem.price;
-        i.category = newItem.category;
-        i.isRawMaterial = newItem.isRawMaterial;
-        i.reorderLevel = newItem.reorderLevel;
-        i.locationType = newItem.locationType;
-        i.truckId = newItem.locationType === 'TRUCK' ? newItem.truckId : '';
-      });
-      if (parseFloat(newItem.qty) > 0) {
-        await database.get<StockMovement>('stock_movements').create((m: any) => {
-          m._raw.id = generateId();
-          m.itemId = item.id;
-          m.itemName = newItem.name;
-          m.quantity = newItem.qty;
-          m.type = 'RECEIVE';
-          m.note = `Nhập kho ${newItem.locationType === 'TRUCK' ? 'xe' : 'tổng'} ban đầu`;
-          m.createdAt = Date.now();
-          m.updatedAt = Date.now();
-        });
-      }
-    });
-    if (shouldSyncInitialStock) {
-      receiveInventory(
-        [{ product_id: sku, quantity: newItem.qty }],
-        initialStockLocation,
-        'initial-stock',
-        `Nhập kho ${newItem.locationType === 'TRUCK' ? 'xe' : 'tổng'} ban đầu`,
-      ).catch((error) => console.warn('Inventory sync failed:', error.message));
+    if (!newItem.name.trim()) {
+      toast.error('Tên hàng hóa là bắt buộc!');
+      return;
     }
-    setShowAddItem(false);
-    setNewItem({ name: '', unit: 'pcs', qty: '0', price: '0', category: '', isRawMaterial: false, reorderLevel: '10', locationType: 'MAIN_WAREHOUSE', truckId: '' });
-    toast.success(`Đã thêm hàng hóa "${newItem.name}"`);
+    if (newItem.locationType === 'TRUCK' && !newItem.truckId) {
+      toast.error('Vui lòng chọn xe nhận khi lưu vào Kho xe!');
+      return;
+    }
+    const parsedQty = parseFloat(newItem.qty);
+    if (isNaN(parsedQty) || parsedQty < 0) {
+      toast.error('Số lượng ban đầu không hợp lệ (không thể nhỏ hơn 0)!');
+      return;
+    }
+    const parsedPrice = parseFloat(newItem.price);
+    if (isNaN(parsedPrice) || parsedPrice < 0) {
+      toast.error('Giá bán không hợp lệ (không thể nhỏ hơn 0)!');
+      return;
+    }
+    const parsedReorder = parseFloat(newItem.reorderLevel);
+    if (isNaN(parsedReorder) || parsedReorder < 0) {
+      toast.error('Ngưỡng tồn tối thiểu không hợp lệ (không thể nhỏ hơn 0)!');
+      return;
+    }
+
+    const sku = 'SKU-' + Date.now();
+    const shouldSyncInitialStock = parsedQty > 0;
+    const initialStockLocation = newItem.locationType === 'TRUCK' ? newItem.truckId : 'MAIN_WAREHOUSE';
+    
+    try {
+      await database.write(async () => {
+        const item = await database.get<InventoryItem>('inventory_items').create((i: any) => {
+          i.name = newItem.name.trim();
+          i.sku = sku;
+          i.unit = newItem.unit.trim() || 'cái';
+          i.quantity = newItem.qty;
+          i.price = newItem.price;
+          i.category = newItem.category.trim();
+          i.isRawMaterial = newItem.isRawMaterial;
+          i.reorderLevel = newItem.reorderLevel;
+          i.locationType = newItem.locationType;
+          i.truckId = newItem.locationType === 'TRUCK' ? newItem.truckId : '';
+        });
+        if (parsedQty > 0) {
+          await database.get<StockMovement>('stock_movements').create((m: any) => {
+            m._raw.id = generateId();
+            m.itemId = item.id;
+            m.itemName = newItem.name.trim();
+            m.quantity = newItem.qty;
+            m.type = 'RECEIVE';
+            m.note = `Nhập kho ${newItem.locationType === 'TRUCK' ? 'xe' : 'tổng'} ban đầu`;
+            m.createdAt = Date.now();
+            m.updatedAt = Date.now();
+          });
+        }
+      });
+
+      if (shouldSyncInitialStock) {
+        receiveInventory(
+          [{ product_id: sku, quantity: newItem.qty }],
+          initialStockLocation,
+          'initial-stock',
+          `Nhập kho ${newItem.locationType === 'TRUCK' ? 'xe' : 'tổng'} ban đầu`,
+        ).catch((error) => console.warn('Inventory sync failed:', error.message));
+      }
+
+      setShowAddItem(false);
+      const addedName = newItem.name;
+      setNewItem({ name: '', unit: 'pcs', qty: '0', price: '0', category: '', isRawMaterial: false, reorderLevel: '10', locationType: 'MAIN_WAREHOUSE', truckId: '' });
+      toast.success(`Đã thêm thành công hàng hóa "${addedName}"!`);
+    } catch (err: any) {
+      toast.error(`Lỗi tạo hàng hóa: ${err.message || 'Không thể thực hiện'}`);
+    }
   };
 
   const receiveStock = async () => {
+    if (!receiveData.itemId) {
+      toast.error('Vui lòng chọn hàng hóa cần nhập kho!');
+      return;
+    }
+    const parsedQty = parseFloat(receiveData.qty);
+    if (isNaN(parsedQty) || parsedQty <= 0) {
+      toast.error('Số lượng nhập phải lớn hơn 0!');
+      return;
+    }
+
+    const item = items.find((i: any) => i.id === receiveData.itemId);
+    if (!item) {
+      toast.error('Không tìm thấy hàng hóa đã chọn!');
+      return;
+    }
+
     const now = Date.now();
-    await database.write(async () => {
-      const item = items.find((i: any) => i.id === receiveData.itemId);
-      if (!item) return;
-      const newQty = parseFloat(item.quantity) + parseFloat(receiveData.qty);
-      await item.update((i: any) => { i.quantity = newQty.toString(); });
-      await database.get<StockMovement>('stock_movements').create((m: any) => {
-        m._raw.id = generateId();
-        m.itemId = item.id;
-        m.itemName = item.name;
-        m.quantity = receiveData.qty;
-        m.type = 'RECEIVE';
-        m.note = receiveData.note || 'Nhập kho';
-        m.referenceId = receiveData.supplierId || '';
-        m.createdAt = now;
-        m.updatedAt = now;
+    try {
+      await database.write(async () => {
+        const newQty = parseFloat(item.quantity) + parsedQty;
+        await item.update((i: any) => { i.quantity = newQty.toString(); });
+        await database.get<StockMovement>('stock_movements').create((m: any) => {
+          m._raw.id = generateId();
+          m.itemId = item.id;
+          m.itemName = item.name;
+          m.quantity = receiveData.qty;
+          m.type = 'RECEIVE';
+          m.note = receiveData.note.trim() || 'Nhập kho';
+          m.referenceId = receiveData.supplierId || '';
+          m.createdAt = now;
+          m.updatedAt = now;
+        });
       });
-    });
-    receiveInventory(
-      [{ product_id: items.find((i: any) => i.id === receiveData.itemId)?.sku || receiveData.itemId, quantity: receiveData.qty }],
-      items.find((i: any) => i.id === receiveData.itemId)?.locationType === 'TRUCK'
-        ? items.find((i: any) => i.id === receiveData.itemId)?.truckId
-        : 'MAIN_WAREHOUSE',
-      receiveData.supplierId || undefined,
-      receiveData.note || 'Nhập kho',
-    ).catch((error) => console.warn('Inventory sync failed:', error.message));
-    setShowReceive(false);
-    setReceiveData({ itemId: '', qty: '0', note: '', supplierId: '' });
-    const receivedItem = items.find((i: any) => i.id === receiveData.itemId);
-    toast.success(`Đã nhập kho ${receiveData.qty} ${receivedItem?.unit || ''} "${receivedItem?.name || ''}"`);
+
+      receiveInventory(
+        [{ product_id: item.sku || receiveData.itemId, quantity: receiveData.qty }],
+        item.locationType === 'TRUCK' ? item.truckId : 'MAIN_WAREHOUSE',
+        receiveData.supplierId || undefined,
+        receiveData.note.trim() || 'Nhập kho',
+      ).catch((error) => console.warn('Inventory sync failed:', error.message));
+
+      setShowReceive(false);
+      setReceiveData({ itemId: '', qty: '0', note: '', supplierId: '' });
+      toast.success(`Đã nhập kho ${receiveData.qty} ${item.unit || ''} "${item.name}"`);
+    } catch (err: any) {
+      toast.error(`Lỗi nhập kho: ${err.message || 'Không thể thực hiện'}`);
+    }
   };
 
   const recordSpoilage = async () => {
+    if (!spoilageData.itemId) {
+      toast.error('Vui lòng chọn hàng hóa cần báo hỏng!');
+      return;
+    }
+    const parsedQty = parseFloat(spoilageData.qty);
+    if (isNaN(parsedQty) || parsedQty <= 0) {
+      toast.error('Số lượng hủy phải lớn hơn 0!');
+      return;
+    }
+
+    const item = items.find((i: any) => i.id === spoilageData.itemId);
+    if (!item) {
+      toast.error('Không tìm thấy hàng hóa đã chọn!');
+      return;
+    }
+
+    if (parsedQty > parseFloat(item.quantity)) {
+      toast.error(`Số lượng báo hỏng (${parsedQty}) vượt quá tồn kho hiện tại (${item.quantity})!`);
+      return;
+    }
+
     const now = Date.now();
-    await database.write(async () => {
-      const item = items.find((i: any) => i.id === spoilageData.itemId);
-      if (!item) return;
-      const newQty = Math.max(0, parseFloat(item.quantity) - parseFloat(spoilageData.qty));
-      await item.update((i: any) => { i.quantity = newQty.toString(); });
-      await database.get<StockMovement>('stock_movements').create((m: any) => {
-        m._raw.id = generateId();
-        m.itemId = item.id;
-        m.itemName = item.name;
-        m.quantity = (-parseFloat(spoilageData.qty)).toString();
-        m.type = 'SPOILAGE';
-        m.note = spoilageData.note || 'Hàng hỏng/hết hạn';
-        m.createdAt = now;
-        m.updatedAt = now;
+    try {
+      await database.write(async () => {
+        const newQty = Math.max(0, parseFloat(item.quantity) - parsedQty);
+        await item.update((i: any) => { i.quantity = newQty.toString(); });
+        await database.get<StockMovement>('stock_movements').create((m: any) => {
+          m._raw.id = generateId();
+          m.itemId = item.id;
+          m.itemName = item.name;
+          m.quantity = (-parsedQty).toString();
+          m.type = 'SPOILAGE';
+          m.note = spoilageData.note.trim() || 'Hàng hỏng/hết hạn';
+          m.createdAt = now;
+          m.updatedAt = now;
+        });
       });
-    });
-    issueInventory(
-      [{ product_id: items.find((i: any) => i.id === spoilageData.itemId)?.sku || spoilageData.itemId, quantity: spoilageData.qty }],
-      items.find((i: any) => i.id === spoilageData.itemId)?.locationType === 'TRUCK'
-        ? items.find((i: any) => i.id === spoilageData.itemId)?.truckId
-        : 'MAIN_WAREHOUSE',
-      'spoilage',
-      spoilageData.note || 'Hàng hỏng/hết hạn',
-    ).catch((error) => console.warn('Inventory sync failed:', error.message));
-    setShowSpoilage(false);
-    setSpoilageData({ itemId: '', qty: '0', note: '' });
-    const spoiledItem = items.find((i: any) => i.id === spoilageData.itemId);
-    toast.warning(`Đã ghi nhận hủy ${spoilageData.qty} "${spoiledItem?.name || ''}"`);
+
+      issueInventory(
+        [{ product_id: item.sku || spoilageData.itemId, quantity: spoilageData.qty }],
+        item.locationType === 'TRUCK' ? item.truckId : 'MAIN_WAREHOUSE',
+        'spoilage',
+        spoilageData.note.trim() || 'Hàng hỏng/hết hạn',
+      ).catch((error) => console.warn('Inventory sync failed:', error.message));
+
+      setShowSpoilage(false);
+      setSpoilageData({ itemId: '', qty: '0', note: '' });
+      toast.warning(`Đã ghi nhận hủy ${parsedQty} "${item.name}" do hỏng/hết hạn!`);
+    } catch (err: any) {
+      toast.error(`Lỗi ghi nhận hàng hỏng: ${err.message || 'Không thể thực hiện'}`);
+    }
   };
 
   const transferToTruck = async () => {
-    const now = Date.now();
-    await database.write(async () => {
-      const sourceItem = items.find((i: any) => i.id === transferData.itemId);
-      if (!sourceItem) return;
+    if (!transferData.itemId) {
+      toast.error('Vui lòng chọn hàng hóa cần xuất cho xe!');
+      return;
+    }
+    if (!transferData.toTruck) {
+      toast.error('Vui lòng chọn xe nhận hàng!');
+      return;
+    }
+    const parsedQty = parseFloat(transferData.qty);
+    if (isNaN(parsedQty) || parsedQty <= 0) {
+      toast.error('Số lượng xuất chuyển phải lớn hơn 0!');
+      return;
+    }
 
-      const newSourceQty = Math.max(0, parseFloat(sourceItem.quantity) - parseFloat(transferData.qty));
-      await sourceItem.update((i: any) => { i.quantity = newSourceQty.toString(); });
-
-      const truckItem = items.find((i: any) =>
-        i.name === sourceItem.name &&
-        i.locationType === 'TRUCK' &&
-        i.truckId === transferData.toTruck
-      );
-
-      if (truckItem) {
-        const newTruckQty = parseFloat(truckItem.quantity) + parseFloat(transferData.qty);
-        await truckItem.update((i: any) => { i.quantity = newTruckQty.toString(); });
-      } else {
-        await database.get<InventoryItem>('inventory_items').create((i: any) => {
-          i._raw.id = generateId();
-          i.name = sourceItem.name;
-          i.sku = sourceItem.sku + '-TRUCK';
-          i.unit = sourceItem.unit;
-          i.quantity = transferData.qty;
-          i.price = sourceItem.price;
-          i.category = sourceItem.category;
-          i.isRawMaterial = sourceItem.isRawMaterial;
-          i.reorderLevel = sourceItem.reorderLevel;
-          i.locationType = 'TRUCK';
-          i.truckId = transferData.toTruck;
-        });
-      }
-
-      await database.get<StockMovement>('stock_movements').create((m: any) => {
-        m._raw.id = generateId();
-        m.itemId = sourceItem.id;
-        m.itemName = sourceItem.name;
-        m.quantity = (-parseFloat(transferData.qty)).toString();
-        m.type = 'TRANSFER_OUT';
-        m.referenceId = transferData.toTruck;
-        m.note = transferData.note || `Xuất kho tổng → xe ${transferData.toTruck}`;
-        m.createdAt = now;
-        m.updatedAt = now;
-      });
-
-      await database.get<StockMovement>('stock_movements').create((m: any) => {
-        m._raw.id = generateId();
-        m.itemId = sourceItem.id;
-        m.itemName = sourceItem.name;
-        m.quantity = transferData.qty;
-        m.type = 'TRANSFER_IN';
-        m.referenceId = transferData.toTruck;
-        m.note = `Nhập kho xe ${transferData.toTruck} từ kho tổng`;
-        m.createdAt = now + 1;
-        m.updatedAt = now + 1;
-      });
-    });
     const sourceItem = items.find((i: any) => i.id === transferData.itemId);
-    if (sourceItem) {
+    if (!sourceItem) {
+      toast.error('Không tìm thấy hàng hóa trong kho tổng!');
+      return;
+    }
+
+    if (parsedQty > parseFloat(sourceItem.quantity)) {
+      toast.error(`Số lượng xuất (${parsedQty}) vượt quá tồn kho hiện tại (${sourceItem.quantity})!`);
+      return;
+    }
+
+    const now = Date.now();
+    try {
+      await database.write(async () => {
+        const newSourceQty = Math.max(0, parseFloat(sourceItem.quantity) - parsedQty);
+        await sourceItem.update((i: any) => { i.quantity = newSourceQty.toString(); });
+
+        const truckItem = items.find((i: any) =>
+          i.name === sourceItem.name &&
+          i.locationType === 'TRUCK' &&
+          i.truckId === transferData.toTruck
+        );
+
+        if (truckItem) {
+          const newTruckQty = parseFloat(truckItem.quantity) + parsedQty;
+          await truckItem.update((i: any) => { i.quantity = newTruckQty.toString(); });
+        } else {
+          await database.get<InventoryItem>('inventory_items').create((i: any) => {
+            i._raw.id = generateId();
+            i.name = sourceItem.name;
+            i.sku = sourceItem.sku + '-TRUCK';
+            i.unit = sourceItem.unit;
+            i.quantity = transferData.qty;
+            i.price = sourceItem.price;
+            i.category = sourceItem.category;
+            i.isRawMaterial = sourceItem.isRawMaterial;
+            i.reorderLevel = sourceItem.reorderLevel;
+            i.locationType = 'TRUCK';
+            i.truckId = transferData.toTruck;
+          });
+        }
+
+        await database.get<StockMovement>('stock_movements').create((m: any) => {
+          m._raw.id = generateId();
+          m.itemId = sourceItem.id;
+          m.itemName = sourceItem.name;
+          m.quantity = (-parsedQty).toString();
+          m.type = 'TRANSFER_OUT';
+          m.referenceId = transferData.toTruck;
+          m.note = transferData.note.trim() || `Xuất kho tổng → xe ${transferData.toTruck}`;
+          m.createdAt = now;
+          m.updatedAt = now;
+        });
+
+        await database.get<StockMovement>('stock_movements').create((m: any) => {
+          m._raw.id = generateId();
+          m.itemId = sourceItem.id;
+          m.itemName = sourceItem.name;
+          m.quantity = transferData.qty;
+          m.type = 'TRANSFER_IN';
+          m.referenceId = transferData.toTruck;
+          m.note = `Nhập kho xe ${transferData.toTruck} từ kho tổng`;
+          m.createdAt = now + 1;
+          m.updatedAt = now + 1;
+        });
+      });
+
       issueInventory(
         [{ product_id: sourceItem.sku, quantity: transferData.qty }],
         'MAIN_WAREHOUSE',
         transferData.toTruck || undefined,
-        transferData.note || `Xuất kho tổng → xe ${transferData.toTruck}`,
+        transferData.note.trim() || `Xuất kho tổng → xe ${transferData.toTruck}`,
       ).catch((error) => console.warn('Inventory sync failed:', error.message));
+      
       receiveInventory(
         [{ product_id: sourceItem.sku, quantity: transferData.qty }],
         transferData.toTruck || undefined,
         transferData.toTruck || undefined,
         `Nhập kho xe ${transferData.toTruck} từ kho tổng`,
       ).catch((error) => console.warn('Inventory sync failed:', error.message));
+
+      setShowTransfer(false);
+      setTransferData({ itemId: '', qty: '0', fromLocation: 'MAIN_WAREHOUSE', toTruck: '', note: '' });
+      toast.success(`Đã chuyển thành công ${parsedQty} hàng từ kho tổng sang xe!`);
+    } catch (err: any) {
+      toast.error(`Lỗi chuyển kho: ${err.message || 'Không thể thực hiện'}`);
     }
-    setShowTransfer(false);
-    setTransferData({ itemId: '', qty: '0', fromLocation: 'MAIN_WAREHOUSE', toTruck: '', note: '' });
-    toast.success(`Đã chuyển ${transferData.qty} hàng từ kho tổng đến xe`);
   };
 
   const countStock = async () => {
+    if (!countData.itemId) {
+      toast.error('Vui lòng chọn hàng hóa cần kiểm kê!');
+      return;
+    }
+    const parsedQty = parseFloat(countData.countedQty);
+    if (isNaN(parsedQty) || parsedQty < 0) {
+      toast.error('Số lượng kiểm kê thực tế không thể nhỏ hơn 0!');
+      return;
+    }
+
     const item = items.find((entry: any) => entry.id === countData.itemId);
-    if (!item) return;
+    if (!item) {
+      toast.error('Không tìm thấy hàng hóa đã chọn!');
+      return;
+    }
 
     const now = Date.now();
-    const countedQty = parseFloat(countData.countedQty || '0');
-    await database.write(async () => {
-      await item.update((i: any) => { i.quantity = String(Math.max(0, countedQty)); });
-      await database.get<StockMovement>('stock_movements').create((m: any) => {
-        m._raw.id = generateId();
-        m.itemId = item.id;
-        m.itemName = item.name;
-        m.quantity = String(countedQty - parseFloat(item.quantity));
-        m.type = 'ADJUSTMENT';
-        m.note = countData.note || 'Kiểm kê';
-        m.createdAt = now;
-        m.updatedAt = now;
+    try {
+      await database.write(async () => {
+        await item.update((i: any) => { i.quantity = String(parsedQty); });
+        await database.get<StockMovement>('stock_movements').create((m: any) => {
+          m._raw.id = generateId();
+          m.itemId = item.id;
+          m.itemName = item.name;
+          m.quantity = String(parsedQty - parseFloat(item.quantity));
+          m.type = 'ADJUSTMENT';
+          m.note = countData.note.trim() || 'Kiểm kê';
+          m.createdAt = now;
+          m.updatedAt = now;
+        });
       });
-    });
 
-    countInventory(
-      [{ product_id: item.sku, counted_quantity: countData.countedQty }],
-      item.locationType === 'TRUCK' ? item.truckId : 'MAIN_WAREHOUSE',
-      'count',
-      countData.note || 'Kiểm kê',
-    ).catch((error) => console.warn('Inventory sync failed:', error.message));
+      countInventory(
+        [{ product_id: item.sku, counted_quantity: countData.countedQty }],
+        item.locationType === 'TRUCK' ? item.truckId : 'MAIN_WAREHOUSE',
+        'count',
+        countData.note.trim() || 'Kiểm kê',
+      ).catch((error) => console.warn('Inventory sync failed:', error.message));
 
-    setShowCount(false);
-    setCountData({ itemId: '', countedQty: '0', note: '' });
-    toast.success(`Đã kiểm kê ${item.name}`);
+      setShowCount(false);
+      setCountData({ itemId: '', countedQty: '0', note: '' });
+      toast.success(`Đã kiểm kê và cập nhật thành công tồn kho "${item.name}"!`);
+    } catch (err: any) {
+      toast.error(`Lỗi kiểm kê: ${err.message || 'Không thể thực hiện'}`);
+    }
   };
 
   const adjustStock = async () => {
+    if (!adjustData.itemId) {
+      toast.error('Vui lòng chọn hàng hóa cần điều chỉnh!');
+      return;
+    }
+    const delta = parseFloat(adjustData.deltaQty);
+    if (isNaN(delta) || delta === 0) {
+      toast.error('Chênh lệch điều chỉnh phải khác 0!');
+      return;
+    }
+
     const item = items.find((entry: any) => entry.id === adjustData.itemId);
-    if (!item) return;
+    if (!item) {
+      toast.error('Không tìm thấy hàng hóa đã chọn!');
+      return;
+    }
+
+    const newQty = parseFloat(item.quantity) + delta;
+    if (newQty < 0) {
+      toast.error(`Số lượng sau điều chỉnh không thể âm (Tồn: ${item.quantity}, chỉnh: ${delta})!`);
+      return;
+    }
 
     const now = Date.now();
-    const deltaQty = parseFloat(adjustData.deltaQty || '0');
-    const newQty = Math.max(0, parseFloat(item.quantity) + deltaQty);
-    await database.write(async () => {
-      await item.update((i: any) => { i.quantity = newQty.toString(); });
-      await database.get<StockMovement>('stock_movements').create((m: any) => {
-        m._raw.id = generateId();
-        m.itemId = item.id;
-        m.itemName = item.name;
-        m.quantity = adjustData.deltaQty;
-        m.type = 'ADJUSTMENT';
-        m.note = adjustData.note || 'Điều chỉnh tồn kho';
-        m.createdAt = now;
-        m.updatedAt = now;
+    try {
+      await database.write(async () => {
+        await item.update((i: any) => { i.quantity = newQty.toString(); });
+        await database.get<StockMovement>('stock_movements').create((m: any) => {
+          m._raw.id = generateId();
+          m.itemId = item.id;
+          m.itemName = item.name;
+          m.quantity = adjustData.deltaQty;
+          m.type = 'ADJUSTMENT';
+          m.note = adjustData.note.trim() || 'Điều chỉnh tồn kho';
+          m.createdAt = now;
+          m.updatedAt = now;
+        });
       });
-    });
 
-    adjustInventory(
-      [{ product_id: item.sku, delta_quantity: adjustData.deltaQty }],
-      item.locationType === 'TRUCK' ? item.truckId : 'MAIN_WAREHOUSE',
-      'adjust',
-      adjustData.note || 'Điều chỉnh tồn kho',
-    ).catch((error) => console.warn('Inventory sync failed:', error.message));
+      adjustInventory(
+        [{ product_id: item.sku, delta_quantity: adjustData.deltaQty }],
+        item.locationType === 'TRUCK' ? item.truckId : 'MAIN_WAREHOUSE',
+        'adjust',
+        adjustData.note.trim() || 'Điều chỉnh tồn kho',
+      ).catch((error) => console.warn('Inventory sync failed:', error.message));
 
-    setShowAdjust(false);
-    setAdjustData({ itemId: '', deltaQty: '0', note: '' });
-    toast.success(`Đã điều chỉnh tồn kho ${item.name}`);
+      setShowAdjust(false);
+      setAdjustData({ itemId: '', deltaQty: '0', note: '' });
+      toast.success(`Đã điều chỉnh thành công tồn kho "${item.name}"!`);
+    } catch (err: any) {
+      toast.error(`Lỗi điều chỉnh tồn kho: ${err.message || 'Không thể thực hiện'}`);
+    }
   };
 
   const addBom = async () => {
-    await database.write(async () => {
-      await database.get<BomRecord>('bom_records').create((b: any) => {
-        b._raw.id = generateId();
-        b.productId = bomData.productId;
-        b.productName = bomData.productName;
-        b.materialId = bomData.materialId;
-        b.materialName = bomData.materialName;
-        b.quantity = bomData.qty;
-        b.unit = bomData.unit;
-        b.createdAt = Date.now();
-        b.updatedAt = Date.now();
+    if (!bomData.productName.trim() || !bomData.productId.trim()) {
+      toast.error('Vui lòng nhập tên và mã sản phẩm (thông tin bắt buộc)!');
+      return;
+    }
+    if (!bomData.materialName.trim() || !bomData.materialId.trim()) {
+      toast.error('Vui lòng nhập tên và mã nguyên liệu (thông tin bắt buộc)!');
+      return;
+    }
+    const qtyParsed = parseFloat(bomData.qty);
+    if (isNaN(qtyParsed) || qtyParsed <= 0) {
+      toast.error('Số lượng định mức phải lớn hơn 0!');
+      return;
+    }
+
+    try {
+      await database.write(async () => {
+        await database.get<BomRecord>('bom_records').create((b: any) => {
+          b._raw.id = generateId();
+          b.productId = bomData.productId.trim();
+          b.productName = bomData.productName.trim();
+          b.materialId = bomData.materialId.trim();
+          b.materialName = bomData.materialName.trim();
+          b.quantity = bomData.qty;
+          b.unit = bomData.unit.trim() || 'pcs';
+          b.createdAt = Date.now();
+          b.updatedAt = Date.now();
+        });
       });
-    });
-    setShowBom(false);
-    setBomData({ productId: '', productName: '', materialId: '', materialName: '', qty: '1', unit: 'pcs' });
-    toast.success(`Đã thêm công thức cho "${bomData.productName}"`);
+      setShowBom(false);
+      const prodName = bomData.productName;
+      setBomData({ productId: '', productName: '', materialId: '', materialName: '', qty: '1', unit: 'pcs' });
+      toast.success(`Đã thêm công thức thành công cho "${prodName}"!`);
+    } catch (err: any) {
+      toast.error(`Lỗi lưu công thức: ${err.message || 'Không thể thực hiện'}`);
+    }
   };
 
   const addSupplier = async () => {
-    await database.write(async () => {
-      await database.get<Supplier>('suppliers').create((s: any) => {
-        s._raw.id = generateId();
-        s.name = supplierData.name;
-        s.phone = supplierData.phone;
-        s.address = supplierData.address;
-        s.note = supplierData.note;
-        s.createdAt = Date.now();
-        s.updatedAt = Date.now();
+    if (!supplierData.name.trim()) {
+      toast.error('Tên nhà cung cấp là bắt buộc!');
+      return;
+    }
+    if (!supplierData.phone.trim()) {
+      toast.error('Số điện thoại liên hệ là bắt buộc!');
+      return;
+    }
+
+    try {
+      await database.write(async () => {
+        await database.get<Supplier>('suppliers').create((s: any) => {
+          s._raw.id = generateId();
+          s.name = supplierData.name.trim();
+          s.phone = supplierData.phone.trim();
+          s.address = supplierData.address.trim();
+          s.note = supplierData.note.trim();
+          s.createdAt = Date.now();
+          s.updatedAt = Date.now();
+        });
       });
-    });
-    setShowSupplier(false);
-    setSupplierData({ name: '', phone: '', address: '', note: '' });
-    toast.success(`Đã thêm nhà cung cấp "${supplierData.name}"`);
+      setShowSupplier(false);
+      const supName = supplierData.name;
+      setSupplierData({ name: '', phone: '', address: '', note: '' });
+      toast.success(`Đã thêm thành công nhà cung cấp "${supName}"!`);
+    } catch (err: any) {
+      toast.error(`Lỗi thêm nhà cung cấp: ${err.message || 'Không thể thực hiện'}`);
+    }
   };
 
   const addTruck = async () => {
-    await database.write(async () => {
-      await database.get<TruckModel>('trucks').create((t: any) => {
-        t._raw.id = generateId();
-        t.name = truckData.name;
-        t.code = truckData.code;
-        t.status = truckData.status;
-        t.location = truckData.location;
-        t.createdAt = Date.now();
-        t.updatedAt = Date.now();
+    if (!truckData.name.trim() || !truckData.code.trim()) {
+      toast.error('Tên xe và mã hiệu xe là bắt buộc!');
+      return;
+    }
+
+    try {
+      await database.write(async () => {
+        await database.get<TruckModel>('trucks').create((t: any) => {
+          t._raw.id = generateId();
+          t.name = truckData.name.trim();
+          t.code = truckData.code.trim().toUpperCase();
+          t.status = truckData.status;
+          t.location = truckData.location.trim();
+          t.createdAt = Date.now();
+          t.updatedAt = Date.now();
+        });
       });
-    });
-    setShowTruck(false);
-    setTruckData({ name: '', code: '', status: 'ACTIVE', location: '' });
-    toast.success(`Đã thêm xe "${truckData.name}"`);
+      setShowTruck(false);
+      const trkName = truckData.name;
+      setTruckData({ name: '', code: '', status: 'ACTIVE', location: '' });
+      toast.success(`Đã thêm thành công xe lưu động "${trkName}"!`);
+    } catch (err: any) {
+      toast.error(`Lỗi thêm thông tin xe: ${err.message || 'Không thể thực hiện'}`);
+    }
   };
 
   const tabs = [
@@ -661,13 +838,13 @@ export default function Inventory() {
       {showAddItem && (
         <Modal title="Thêm hàng hóa mới" onClose={() => setShowAddItem(false)}>
           <div className="space-y-3">
-            <Input label="Tên hàng" value={newItem.name} onChange={(e: any) => setNewItem({ ...newItem, name: e.target.value })} placeholder="Nhập tên hàng hóa" />
+            <Input label={<>Tên hàng <span className="text-red-500 font-bold ml-0.5">*</span></>} value={newItem.name} onChange={(e: any) => setNewItem({ ...newItem, name: e.target.value })} placeholder="Nhập tên hàng hóa" />
             <div className="grid grid-cols-2 gap-3">
-              <Input label="Đơn vị" value={newItem.unit} onChange={(e: any) => setNewItem({ ...newItem, unit: e.target.value })} placeholder="pcs, kg, lít..." />
-              <Input label="Giá bán" type="number" value={newItem.price} onChange={(e: any) => setNewItem({ ...newItem, price: e.target.value })} placeholder="0" />
+              <Input label={<>Đơn vị <span className="text-red-500 font-bold ml-0.5">*</span></>} value={newItem.unit} onChange={(e: any) => setNewItem({ ...newItem, unit: e.target.value })} placeholder="pcs, kg, lít..." />
+              <Input label={<>Giá bán <span className="text-red-500 font-bold ml-0.5">*</span></>} type="number" value={newItem.price} onChange={(e: any) => setNewItem({ ...newItem, price: e.target.value })} placeholder="0" />
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <Input label="Số lượng đầu" type="number" value={newItem.qty} onChange={(e: any) => setNewItem({ ...newItem, qty: e.target.value })} placeholder="0" />
+              <Input label={<>Số lượng đầu <span className="text-red-500 font-bold ml-0.5">*</span></>} type="number" value={newItem.qty} onChange={(e: any) => setNewItem({ ...newItem, qty: e.target.value })} placeholder="0" />
               <Input label="Ngưỡng tồn tối thiểu" type="number" value={newItem.reorderLevel} onChange={(e: any) => setNewItem({ ...newItem, reorderLevel: e.target.value })} placeholder="10" />
             </div>
             <Input label="Danh mục" value={newItem.category} onChange={(e: any) => setNewItem({ ...newItem, category: e.target.value })} placeholder="VD: Đồ uống, Thức ăn..." />
@@ -682,7 +859,7 @@ export default function Inventory() {
               </button>
             </div>
             {newItem.locationType === 'TRUCK' && (
-              <Select label="Chọn xe" value={newItem.truckId} onChange={(e: any) => setNewItem({ ...newItem, truckId: e.target.value })}
+              <Select label={<>Chọn xe nhận <span className="text-red-500 font-bold ml-0.5">*</span></>} value={newItem.truckId} onChange={(e: any) => setNewItem({ ...newItem, truckId: e.target.value })}
                 options={[{ value: '', label: '-- Chọn xe --' }, ...trucks.filter((t: any) => t.status === 'ACTIVE').map((t: any) => ({ value: t.id, label: `${t.name} (${t.code})` }))]} />
             )}
             <label className="flex items-center space-x-2">
@@ -701,9 +878,9 @@ export default function Inventory() {
       {showReceive && (
         <Modal title="Nhập kho" onClose={() => setShowReceive(false)}>
           <div className="space-y-3">
-            <Select label="Chọn hàng hóa" value={receiveData.itemId} onChange={(e: any) => setReceiveData({ ...receiveData, itemId: e.target.value })}
-              options={[{ value: '', label: '-- Chọn --' }, ...items.map((i: any) => ({ value: i.id, label: `${i.name} (tồn: ${i.quantity} ${i.unit})` }))]} />
-            <Input label="Số lượng nhập" type="number" value={receiveData.qty} onChange={(e: any) => setReceiveData({ ...receiveData, qty: e.target.value })} placeholder="0" />
+            <Select label={<>Chọn hàng hóa cần nhập <span className="text-red-500 font-bold ml-0.5">*</span></>} value={receiveData.itemId} onChange={(e: any) => setReceiveData({ ...receiveData, itemId: e.target.value })}
+              options={[{ value: '', label: '-- Chọn hàng hóa --' }, ...items.map((i: any) => ({ value: i.id, label: `${i.name} (tồn: ${i.quantity} ${i.unit})` }))]} />
+            <Input label={<>Số lượng nhập <span className="text-red-500 font-bold ml-0.5">*</span></>} type="number" value={receiveData.qty} onChange={(e: any) => setReceiveData({ ...receiveData, qty: e.target.value })} placeholder="0" />
             <Select label="Nhà cung cấp" value={receiveData.supplierId} onChange={(e: any) => setReceiveData({ ...receiveData, supplierId: e.target.value })}
               options={[{ value: '', label: '-- Không có --' }, ...suppliers.map((s: any) => ({ value: s.id, label: s.name }))]} />
             <Input label="Ghi chú" value={receiveData.note} onChange={(e: any) => setReceiveData({ ...receiveData, note: e.target.value })} placeholder="Ghi chú nhập kho" />
@@ -719,10 +896,10 @@ export default function Inventory() {
       {showCount && (
         <Modal title="Kiểm kê tồn kho" onClose={() => setShowCount(false)}>
           <div className="space-y-3">
-            <Select label="Chọn hàng hóa" value={countData.itemId} onChange={(e: any) => setCountData({ ...countData, itemId: e.target.value })}
-              options={[{ value: '', label: '-- Chọn --' }, ...items.map((i: any) => ({ value: i.id, label: `${i.name} (tồn: ${i.quantity} ${i.unit})` }))]} />
-            <Input label="Số lượng thực tế" type="number" value={countData.countedQty} onChange={(e: any) => setCountData({ ...countData, countedQty: e.target.value })} placeholder="0" />
-            <Input label="Ghi chú" value={countData.note} onChange={(e: any) => setCountData({ ...countData, note: e.target.value })} placeholder="Ghi chú kiểm kê" />
+            <Select label={<>Chọn hàng hóa kiểm kê <span className="text-red-500 font-bold ml-0.5">*</span></>} value={countData.itemId} onChange={(e: any) => setCountData({ ...countData, itemId: e.target.value })}
+              options={[{ value: '', label: '-- Chọn hàng hóa --' }, ...items.map((i: any) => ({ value: i.id, label: `${i.name} (tồn: ${i.quantity} ${i.unit})` }))]} />
+            <Input label={<>Số lượng thực tế tại quầy <span className="text-red-500 font-bold ml-0.5">*</span></>} type="number" value={countData.countedQty} onChange={(e: any) => setCountData({ ...countData, countedQty: e.target.value })} placeholder="0" />
+            <Input label="Ghi chú kiểm kê" value={countData.note} onChange={(e: any) => setCountData({ ...countData, note: e.target.value })} placeholder="Ghi chú kiểm kê" />
             <div className="flex justify-end space-x-2 pt-2">
               <button onClick={() => setShowCount(false)} className="px-4 py-2 bg-surface-zen text-text-secondary rounded-lg text-sm font-medium hover:bg-gray-200 transition-all">Hủy</button>
               <button onClick={countStock} className="px-4 py-2 bg-sky-600 text-white rounded-lg text-sm font-medium hover:bg-sky-700 transition-all">Xác nhận kiểm kê</button>
@@ -735,10 +912,10 @@ export default function Inventory() {
       {showAdjust && (
         <Modal title="Điều chỉnh tồn kho" onClose={() => setShowAdjust(false)}>
           <div className="space-y-3">
-            <Select label="Chọn hàng hóa" value={adjustData.itemId} onChange={(e: any) => setAdjustData({ ...adjustData, itemId: e.target.value })}
-              options={[{ value: '', label: '-- Chọn --' }, ...items.map((i: any) => ({ value: i.id, label: `${i.name} (tồn: ${i.quantity} ${i.unit})` }))]} />
-            <Input label="Chênh lệch số lượng" type="number" value={adjustData.deltaQty} onChange={(e: any) => setAdjustData({ ...adjustData, deltaQty: e.target.value })} placeholder="VD: 2 hoặc -1" />
-            <Input label="Ghi chú" value={adjustData.note} onChange={(e: any) => setAdjustData({ ...adjustData, note: e.target.value })} placeholder="Ghi chú điều chỉnh" />
+            <Select label={<>Chọn hàng hóa điều chỉnh <span className="text-red-500 font-bold ml-0.5">*</span></>} value={adjustData.itemId} onChange={(e: any) => setAdjustData({ ...adjustData, itemId: e.target.value })}
+              options={[{ value: '', label: '-- Chọn hàng hóa --' }, ...items.map((i: any) => ({ value: i.id, label: `${i.name} (tồn: ${i.quantity} ${i.unit})` }))]} />
+            <Input label={<>Chênh lệch số lượng (+ hoặc -) <span className="text-red-500 font-bold ml-0.5">*</span></>} type="number" value={adjustData.deltaQty} onChange={(e: any) => setAdjustData({ ...adjustData, deltaQty: e.target.value })} placeholder="VD: 2 hoặc -1" />
+            <Input label="Ghi chú điều chỉnh" value={adjustData.note} onChange={(e: any) => setAdjustData({ ...adjustData, note: e.target.value })} placeholder="Ghi chú điều chỉnh" />
             <div className="flex justify-end space-x-2 pt-2">
               <button onClick={() => setShowAdjust(false)} className="px-4 py-2 bg-surface-zen text-text-secondary rounded-lg text-sm font-medium hover:bg-gray-200 transition-all">Hủy</button>
               <button onClick={adjustStock} className="px-4 py-2 bg-amber-600 text-white rounded-lg text-sm font-medium hover:bg-amber-700 transition-all">Xác nhận điều chỉnh</button>
@@ -751,10 +928,10 @@ export default function Inventory() {
       {showSpoilage && (
         <Modal title="Ghi nhận hàng hỏng/hết hạn" onClose={() => setShowSpoilage(false)}>
           <div className="space-y-3">
-            <Select label="Chọn hàng hóa" value={spoilageData.itemId} onChange={(e: any) => setSpoilageData({ ...spoilageData, itemId: e.target.value })}
-              options={[{ value: '', label: '-- Chọn --' }, ...items.map((i: any) => ({ value: i.id, label: `${i.name} (tồn: ${i.quantity} ${i.unit})` }))]} />
-            <Input label="Số lượng hủy" type="number" value={spoilageData.qty} onChange={(e: any) => setSpoilageData({ ...spoilageData, qty: e.target.value })} placeholder="0" />
-            <Input label="Lý do" value={spoilageData.note} onChange={(e: any) => setSpoilageData({ ...spoilageData, note: e.target.value })} placeholder="VD: Hết hạn, hỏng..." />
+            <Select label={<>Chọn hàng hóa báo hủy <span className="text-red-500 font-bold ml-0.5">*</span></>} value={spoilageData.itemId} onChange={(e: any) => setSpoilageData({ ...spoilageData, itemId: e.target.value })}
+              options={[{ value: '', label: '-- Chọn hàng hóa --' }, ...items.map((i: any) => ({ value: i.id, label: `${i.name} (tồn: ${i.quantity} ${i.unit})` }))]} />
+            <Input label={<>Số lượng hủy <span className="text-red-500 font-bold ml-0.5">*</span></>} type="number" value={spoilageData.qty} onChange={(e: any) => setSpoilageData({ ...spoilageData, qty: e.target.value })} placeholder="0" />
+            <Input label="Lý do báo hủy" value={spoilageData.note} onChange={(e: any) => setSpoilageData({ ...spoilageData, note: e.target.value })} placeholder="VD: Hết hạn, hỏng..." />
             <div className="flex justify-end space-x-2 pt-2">
               <button onClick={() => setShowSpoilage(false)} className="px-4 py-2 bg-surface-zen text-text-secondary rounded-lg text-sm font-medium hover:bg-gray-200 transition-all">Hủy</button>
               <button onClick={recordSpoilage} className="px-4 py-2 bg-error-zen text-white rounded-lg text-sm font-medium hover:bg-red-700 transition-all">Xác nhận hủy</button>
@@ -767,12 +944,12 @@ export default function Inventory() {
       {showTransfer && (
         <Modal title="Xuất hàng từ kho tổng cho xe" onClose={() => setShowTransfer(false)}>
           <div className="space-y-3">
-            <Select label="Chọn hàng hóa" value={transferData.itemId} onChange={(e: any) => setTransferData({ ...transferData, itemId: e.target.value })}
-              options={[{ value: '', label: '-- Chọn --' }, ...warehouseItems.map((i: any) => ({ value: i.id, label: `${i.name} (tồn: ${i.quantity} ${i.unit})` }))]} />
-            <Input label="Số lượng xuất" type="number" value={transferData.qty} onChange={(e: any) => setTransferData({ ...transferData, qty: e.target.value })} placeholder="0" />
-            <Select label="Chọn xe nhận" value={transferData.toTruck} onChange={(e: any) => setTransferData({ ...transferData, toTruck: e.target.value })}
+            <Select label={<>Chọn hàng hóa xuất kho <span className="text-red-500 font-bold ml-0.5">*</span></>} value={transferData.itemId} onChange={(e: any) => setTransferData({ ...transferData, itemId: e.target.value })}
+              options={[{ value: '', label: '-- Chọn hàng hóa --' }, ...warehouseItems.map((i: any) => ({ value: i.id, label: `${i.name} (tồn: ${i.quantity} ${i.unit})` }))]} />
+            <Input label={<>Số lượng xuất <span className="text-red-500 font-bold ml-0.5">*</span></>} type="number" value={transferData.qty} onChange={(e: any) => setTransferData({ ...transferData, qty: e.target.value })} placeholder="0" />
+            <Select label={<>Chọn xe nhận <span className="text-red-500 font-bold ml-0.5">*</span></>} value={transferData.toTruck} onChange={(e: any) => setTransferData({ ...transferData, toTruck: e.target.value })}
               options={[{ value: '', label: '-- Chọn xe --' }, ...trucks.filter((t: any) => t.status === 'ACTIVE').map((t: any) => ({ value: t.id, label: `${t.name} (${t.code})` }))]} />
-            <Input label="Ghi chú" value={transferData.note} onChange={(e: any) => setTransferData({ ...transferData, note: e.target.value })} placeholder="Ghi chú xuất kho" />
+            <Input label="Ghi chú xuất kho" value={transferData.note} onChange={(e: any) => setTransferData({ ...transferData, note: e.target.value })} placeholder="Ghi chú xuất kho" />
             <div className="flex justify-end space-x-2 pt-2">
               <button onClick={() => setShowTransfer(false)} className="px-4 py-2 bg-surface-zen text-text-secondary rounded-lg text-sm font-medium hover:bg-gray-200 transition-all">Hủy</button>
               <button onClick={transferToTruck} className="px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary-dark transition-all">Xác nhận xuất</button>
@@ -785,13 +962,13 @@ export default function Inventory() {
       {showBom && (
         <Modal title="Thêm công thức chế biến" onClose={() => setShowBom(false)}>
           <div className="space-y-3">
-            <Input label="Tên sản phẩm" value={bomData.productName} onChange={(e: any) => setBomData({ ...bomData, productName: e.target.value })} placeholder="VD: Trà sữa trân châu" />
-            <Input label="Mã sản phẩm" value={bomData.productId} onChange={(e: any) => setBomData({ ...bomData, productId: e.target.value })} placeholder="VD: PROD-001" />
-            <Input label="Tên nguyên liệu" value={bomData.materialName} onChange={(e: any) => setBomData({ ...bomData, materialName: e.target.value })} placeholder="VD: Sữa tươi" />
-            <Input label="Mã nguyên liệu" value={bomData.materialId} onChange={(e: any) => setBomData({ ...bomData, materialId: e.target.value })} placeholder="VD: MAT-001" />
+            <Input label={<>Tên sản phẩm chế biến <span className="text-red-500 font-bold ml-0.5">*</span></>} value={bomData.productName} onChange={(e: any) => setBomData({ ...bomData, productName: e.target.value })} placeholder="VD: Trà sữa trân châu" />
+            <Input label={<>Mã sản phẩm chế biến <span className="text-red-500 font-bold ml-0.5">*</span></>} value={bomData.productId} onChange={(e: any) => setBomData({ ...bomData, productId: e.target.value })} placeholder="VD: PROD-001" />
+            <Input label={<>Tên nguyên liệu sử dụng <span className="text-red-500 font-bold ml-0.5">*</span></>} value={bomData.materialName} onChange={(e: any) => setBomData({ ...bomData, materialName: e.target.value })} placeholder="VD: Sữa tươi" />
+            <Input label={<>Mã nguyên liệu sử dụng <span className="text-red-500 font-bold ml-0.5">*</span></>} value={bomData.materialId} onChange={(e: any) => setBomData({ ...bomData, materialId: e.target.value })} placeholder="VD: MAT-001" />
             <div className="grid grid-cols-2 gap-3">
-              <Input label="Số lượng" type="number" value={bomData.qty} onChange={(e: any) => setBomData({ ...bomData, qty: e.target.value })} placeholder="1" />
-              <Input label="Đơn vị" value={bomData.unit} onChange={(e: any) => setBomData({ ...bomData, unit: e.target.value })} placeholder="pcs, ml, g..." />
+              <Input label={<>Số lượng định mức <span className="text-red-500 font-bold ml-0.5">*</span></>} type="number" value={bomData.qty} onChange={(e: any) => setBomData({ ...bomData, qty: e.target.value })} placeholder="1" />
+              <Input label={<>Đơn vị <span className="text-red-500 font-bold ml-0.5">*</span></>} value={bomData.unit} onChange={(e: any) => setBomData({ ...bomData, unit: e.target.value })} placeholder="pcs, ml, g..." />
             </div>
             <div className="flex justify-end space-x-2 pt-2">
               <button onClick={() => setShowBom(false)} className="px-4 py-2 bg-surface-zen text-text-secondary rounded-lg text-sm font-medium hover:bg-gray-200 transition-all">Hủy</button>
@@ -805,8 +982,8 @@ export default function Inventory() {
       {showSupplier && (
         <Modal title="Thêm nhà cung cấp" onClose={() => setShowSupplier(false)}>
           <div className="space-y-3">
-            <Input label="Tên nhà cung cấp" value={supplierData.name} onChange={(e: any) => setSupplierData({ ...supplierData, name: e.target.value })} placeholder="Nhập tên NCC" />
-            <Input label="Số điện thoại" value={supplierData.phone} onChange={(e: any) => setSupplierData({ ...supplierData, phone: e.target.value })} placeholder="Số điện thoại" />
+            <Input label={<>Tên nhà cung cấp <span className="text-red-500 font-bold ml-0.5">*</span></>} value={supplierData.name} onChange={(e: any) => setSupplierData({ ...supplierData, name: e.target.value })} placeholder="Nhập tên NCC" />
+            <Input label={<>Số điện thoại liên hệ <span className="text-red-500 font-bold ml-0.5">*</span></>} value={supplierData.phone} onChange={(e: any) => setSupplierData({ ...supplierData, phone: e.target.value })} placeholder="Số điện thoại" />
             <Input label="Địa chỉ" value={supplierData.address} onChange={(e: any) => setSupplierData({ ...supplierData, address: e.target.value })} placeholder="Địa chỉ" />
             <Input label="Ghi chú" value={supplierData.note} onChange={(e: any) => setSupplierData({ ...supplierData, note: e.target.value })} placeholder="Ghi chú" />
             <div className="flex justify-end space-x-2 pt-2">
@@ -821,9 +998,9 @@ export default function Inventory() {
       {showTruck && (
         <Modal title="Thêm xe mới" onClose={() => setShowTruck(false)}>
           <div className="space-y-3">
-            <Input label="Tên xe" value={truckData.name} onChange={(e: any) => setTruckData({ ...truckData, name: e.target.value })} placeholder="VD: Xe số 1" />
-            <Input label="Mã xe" value={truckData.code} onChange={(e: any) => setTruckData({ ...truckData, code: e.target.value })} placeholder="VD: XE-001" />
-            <Input label="Vị trí" value={truckData.location} onChange={(e: any) => setTruckData({ ...truckData, location: e.target.value })} placeholder="VD: Cổng trường, Chợ..." />
+            <Input label={<>Tên xe lưu động <span className="text-red-500 font-bold ml-0.5">*</span></>} value={truckData.name} onChange={(e: any) => setTruckData({ ...truckData, name: e.target.value })} placeholder="VD: Xe số 1" />
+            <Input label={<>Mã hiệu xe <span className="text-red-500 font-bold ml-0.5">*</span></>} value={truckData.code} onChange={(e: any) => setTruckData({ ...truckData, code: e.target.value })} placeholder="VD: XE-001" />
+            <Input label="Vị trí hoạt động" value={truckData.location} onChange={(e: any) => setTruckData({ ...truckData, location: e.target.value })} placeholder="VD: Cổng trường, Chợ..." />
             <Select label="Trạng thái" value={truckData.status} onChange={(e: any) => setTruckData({ ...truckData, status: e.target.value })}
               options={[{ value: 'ACTIVE', label: 'Hoạt động' }, { value: 'INACTIVE', label: 'Ngừng' }, { value: 'MAINTENANCE', label: 'Bảo trì' }]} />
             <div className="flex justify-end space-x-2 pt-2">
