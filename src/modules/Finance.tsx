@@ -58,8 +58,6 @@ export default function Finance() {
         t.category = formData.category;
         t.note = formData.note;
         t.paymentMethod = formData.paymentMethod;
-        t.createdAt = Date.now();
-        t.updatedAt = Date.now();
       });
     });
     setShowAdd(false);

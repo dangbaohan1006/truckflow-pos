@@ -60,8 +60,6 @@ export default function HR() {
         e.status = empData.status;
         e.department = empData.department;
         e.truckId = empData.truckId;
-        e.createdAt = Date.now();
-        e.updatedAt = Date.now();
       });
     });
     setShowAddEmployee(false);
@@ -82,8 +80,6 @@ export default function HR() {
           a.checkOut = now;
         }
         a.note = attData.note;
-        a.createdAt = now;
-        a.updatedAt = now;
       });
     });
     setShowAttendance(false);
@@ -103,8 +99,6 @@ export default function HR() {
         a.amount = advData.amount;
         a.note = advData.note;
         a.date = now;
-        a.createdAt = now;
-        a.updatedAt = now;
       });
     });
     setShowAdvance(false);
@@ -124,7 +118,6 @@ export default function HR() {
         u.status = showEditEmployee.status;
         u.department = showEditEmployee.department;
         u.truckId = showEditEmployee.truckId;
-        u.updatedAt = Date.now();
       });
     });
     setShowEditEmployee(null);
