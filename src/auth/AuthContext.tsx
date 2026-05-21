@@ -38,7 +38,10 @@ interface AuthUser {
   displayName: string;
   role: Role;
   permissions: Permission[];
+  employeeId?: string;
+  moduleAccess?: string;
 }
+
 
 interface AuthContextType {
   user: AuthUser | null;
@@ -80,8 +83,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       displayName: profile.display_name,
       role: profile.role as Role,
       permissions: profile.permissions as Permission[],
+      employeeId: profile.employee_id,
+      moduleAccess: profile.module_access,
     };
   }, []);
+
 
   // ---------------------------------------------------------------------------
   // Helper: Try to restore session from stored token

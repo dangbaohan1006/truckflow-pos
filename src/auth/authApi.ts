@@ -33,7 +33,10 @@ export interface UserProfile {
   display_name: string;
   role: string;
   permissions: string[];
+  employee_id?: string;
+  module_access?: string;
 }
+
 
 export interface ApiError {
   error: string;

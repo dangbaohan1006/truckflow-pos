@@ -36,7 +36,10 @@ export async function initializeDefaultUsers() {
           user.displayName = def.displayName;
           user.role = def.role;
           user.status = 'ACTIVE';
+          user.employeeId = '';
+          user.moduleAccess = '[]';
         });
+
 
         console.log(`✅ User created: ${def.username} / ${def.password} (${def.role})`);
       }

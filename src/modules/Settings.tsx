@@ -3,14 +3,16 @@ import {
   Settings as SettingsIcon, User, Shield, Printer, Wifi,
   RefreshCw, Info, Save, Check, Globe, Users, Key, Plus,
   Lock, Unlock, Trash2, Edit3, UserPlus, Search, History,
+  Store, Package, BarChart3, DollarSign, Users as UsersIcon,
 } from 'lucide-react';
 import { database } from '../database/index.js';
 import UserModel from '../database/models/User.js';
+import Employee from '../database/models/Employee.js';
 import { seedTestData } from '../database/seedTestData.js';
 import { seedMaterialsReportData } from '../database/seedMaterialsReport.js';
 import { useAuth } from '../auth/AuthContext.js';
 import { logActivity, getActivityLogs, clearActivityLogs, type ActivityRecord } from '../shared/activityLogger.js';
-import { ROLES, ROLE_LABELS, PERMISSIONS, type Role, type Permission } from '../auth/permissions.js';
+import { ROLES, ROLE_LABELS, PERMISSIONS, MODULE_ACCESS, type Role, type Permission } from '../auth/permissions.js';
 import { TabButton, Modal, Input, Select } from '../shared/components.js';
 import { generateId } from '../shared/utils.js';
 import { useToast } from '../shared/ToastContext.js';
@@ -69,12 +71,15 @@ export default function Settings() {
     lowStockThreshold: '10',
   });
 
+  const [employees, setEmployees] = useState<any[]>([]);
   const [userForm, setUserForm] = useState({
     username: '',
     password: '',
     displayName: '',
     role: 'STAFF' as Role,
     status: 'ACTIVE',
+    employeeId: '',
+    moduleAccess: '[]' as string, // JSON array of module keys
   });
 
   useEffect(() => {
@@ -83,6 +88,13 @@ export default function Settings() {
       return () => sub.unsubscribe();
     }
   }, [isAdmin]);
+
+  // Load employees for matching
+  useEffect(() => {
+    const sub = database.get<Employee>('employees').query().observe().subscribe(setEmployees);
+    return () => sub.unsubscribe();
+  }, []);
+
 
   // Load config from localStorage
   useEffect(() => {
@@ -158,12 +170,15 @@ export default function Settings() {
         u.displayName = userForm.displayName;
         u.role = userForm.role;
         u.status = userForm.status;
+        u.employeeId = userForm.employeeId || '';
+        u.moduleAccess = userForm.moduleAccess || '[]';
       });
     });
     setShowAddUser(false);
-    setUserForm({ username: '', password: '', displayName: '', role: 'STAFF', status: 'ACTIVE' });
+    setUserForm({ username: '', password: '', displayName: '', role: 'STAFF', status: 'ACTIVE', employeeId: '', moduleAccess: '[]' });
     toast.success(`Đã thêm người dùng "${userForm.displayName || userForm.username}"`);
   };
+
 
   const updateUser = async () => {
     if (!showEditUser) return;
@@ -173,6 +188,8 @@ export default function Settings() {
         u.displayName = showEditUser.displayName;
         u.role = showEditUser.role;
         u.status = showEditUser.status;
+        u.employeeId = showEditUser.employeeId || '';
+        u.moduleAccess = showEditUser.moduleAccess || '[]';
         if (showEditUser.password) {
           u.password = showEditUser.password;
         }
@@ -181,6 +198,7 @@ export default function Settings() {
     setShowEditUser(null);
     toast.success(`Đã cập nhật người dùng "${showEditUser.displayName || showEditUser.username}"`);
   };
+
 
   const toggleUserStatus = async (userId: string, currentStatus: string) => {
     const newStatus = currentStatus === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE';
@@ -349,8 +367,10 @@ export default function Settings() {
                   <th className="text-left p-4 text-sm font-medium text-text-secondary">Người dùng</th>
                   <th className="text-left p-4 text-sm font-medium text-text-secondary">Tên đăng nhập</th>
                   <th className="text-left p-4 text-sm font-medium text-text-secondary">Vai trò</th>
+                  <th className="text-left p-4 text-sm font-medium text-text-secondary">Nhân viên</th>
                   <th className="text-left p-4 text-sm font-medium text-text-secondary">Trạng thái</th>
                   {(canEditUsers || isAdmin) && <th className="text-right p-4 text-sm font-medium text-text-secondary">Thao tác</th>}
+
                 </tr>
               </thead>
               <tbody>
@@ -371,6 +391,15 @@ export default function Settings() {
                       </span>
                     </td>
                     <td className="p-4">
+                      {u.employeeId ? (
+                        <span className="text-xs text-text-secondary">
+                          {employees.find((e: any) => e.id === u.employeeId)?.name || 'Đã xóa'}
+                        </span>
+                      ) : (
+                        <span className="text-xs text-gray-400">-</span>
+                      )}
+                    </td>
+                    <td className="p-4">
                       <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${u.status === 'ACTIVE' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'}`}>
                         {u.status === 'ACTIVE' ? 'Hoạt động' : 'Đã khóa'}
                       </span>
@@ -381,7 +410,10 @@ export default function Settings() {
                           <button onClick={() => setShowEditUser({
                             id: u.id, username: u.username, displayName: u.displayName,
                             role: u.role, status: u.status, password: '',
+                            employeeId: u.employeeId || '',
+                            moduleAccess: u.moduleAccess || '[]',
                           })}
+
                             className="p-2 text-text-secondary hover:text-primary hover:bg-primary/10 rounded-lg transition-all"
                             title="Sửa">
                             <Edit3 size={15} />
@@ -613,8 +645,55 @@ export default function Settings() {
             <Input label="Tên hiển thị" value={userForm.displayName}
               onChange={(e: any) => setUserForm({ ...userForm, displayName: e.target.value })} placeholder="Nhập tên hiển thị..." />
             <Select label="Vai trò" value={userForm.role}
-              onChange={(e: any) => setUserForm({ ...userForm, role: e.target.value })}
+              onChange={(e: any) => {
+                const newRole = e.target.value;
+                setUserForm({ ...userForm, role: newRole, moduleAccess: newRole === 'STAFF' ? userForm.moduleAccess : '[]' });
+              }}
               options={Object.entries(ROLE_LABELS).map(([value, label]) => ({ value, label }))} />
+
+            {/* Employee matching - only for STAFF role */}
+            {userForm.role === 'STAFF' && (
+              <>
+                <Select label="Ghép với nhân viên" value={userForm.employeeId}
+                  onChange={(e: any) => setUserForm({ ...userForm, employeeId: e.target.value })}
+                  options={[
+                    { value: '', label: '-- Không ghép --' },
+                    ...employees.filter((e: any) => e.status === 'ACTIVE').map((e: any) => ({
+                      value: e.id,
+                      label: `${e.name} (${e.role || 'Nhân viên'})`,
+                    })),
+                  ]} />
+
+                <div className="border-t pt-3">
+                  <p className="text-sm font-medium text-text-secondary mb-2">Quyền truy cập menu:</p>
+                  <p className="text-xs text-text-secondary mb-3">Chọn các tab mà nhân viên này được phép xem</p>
+                  <div className="space-y-2">
+                    {MODULE_ACCESS.map((mod) => {
+                      const selectedModules: string[] = JSON.parse(userForm.moduleAccess || '[]');
+                      const isSelected = selectedModules.includes(mod.key);
+                      return (
+                        <label key={mod.key} className="flex items-center space-x-3 p-2 hover:bg-surface-zen rounded-lg cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => {
+                              const current = JSON.parse(userForm.moduleAccess || '[]');
+                              const updated = isSelected
+                                ? current.filter((k: string) => k !== mod.key)
+                                : [...current, mod.key];
+                              setUserForm({ ...userForm, moduleAccess: JSON.stringify(updated) });
+                            }}
+                            className="w-4 h-4 rounded"
+                          />
+                          <span className="text-sm">{mod.label}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+              </>
+            )}
+
             <button onClick={addUser} disabled={!userForm.username || !userForm.password}
               className="w-full py-3 bg-accent text-white rounded-xl font-medium hover:bg-primary-dark transition-all disabled:opacity-50">
               Thêm người dùng
@@ -622,6 +701,7 @@ export default function Settings() {
           </div>
         </Modal>
       )}
+
 
       {/* Edit User Modal */}
       {showEditUser && (
@@ -642,6 +722,50 @@ export default function Settings() {
             <Select label="Trạng thái" value={showEditUser.status}
               onChange={(e: any) => setShowEditUser({ ...showEditUser, status: e.target.value })}
               options={[{ value: 'ACTIVE', label: 'Hoạt động' }, { value: 'INACTIVE', label: 'Đã khóa' }]} />
+
+            {/* Employee matching - only for STAFF role */}
+            {showEditUser.role === 'STAFF' && (
+              <>
+                <Select label="Ghép với nhân viên" value={showEditUser.employeeId}
+                  onChange={(e: any) => setShowEditUser({ ...showEditUser, employeeId: e.target.value })}
+                  options={[
+                    { value: '', label: '-- Không ghép --' },
+                    ...employees.filter((e: any) => e.status === 'ACTIVE').map((e: any) => ({
+                      value: e.id,
+                      label: `${e.name} (${e.role || 'Nhân viên'})`,
+                    })),
+                  ]} />
+
+                <div className="border-t pt-3">
+                  <p className="text-sm font-medium text-text-secondary mb-2">Quyền truy cập menu:</p>
+                  <p className="text-xs text-text-secondary mb-3">Chọn các tab mà nhân viên này được phép xem</p>
+                  <div className="space-y-2">
+                    {MODULE_ACCESS.map((mod) => {
+                      const selectedModules: string[] = JSON.parse(showEditUser.moduleAccess || '[]');
+                      const isSelected = selectedModules.includes(mod.key);
+                      return (
+                        <label key={mod.key} className="flex items-center space-x-3 p-2 hover:bg-surface-zen rounded-lg cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => {
+                              const current = JSON.parse(showEditUser.moduleAccess || '[]');
+                              const updated = isSelected
+                                ? current.filter((k: string) => k !== mod.key)
+                                : [...current, mod.key];
+                              setShowEditUser({ ...showEditUser, moduleAccess: JSON.stringify(updated) });
+                            }}
+                            className="w-4 h-4 rounded"
+                          />
+                          <span className="text-sm">{mod.label}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+              </>
+            )}
+
             <button onClick={updateUser}
               className="w-full py-3 bg-accent text-white rounded-xl font-medium hover:bg-primary-dark transition-all">
               Cập nhật
@@ -649,6 +773,7 @@ export default function Settings() {
           </div>
         </Modal>
       )}
+
     </div>
   );
 }

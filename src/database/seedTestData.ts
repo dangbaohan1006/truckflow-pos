@@ -62,7 +62,10 @@ async function ensureUserSeed(users: UserSeed[]) {
       record.displayName = user.displayName;
       record.role = user.role;
       record.status = user.status;
+      record.employeeId = '';
+      record.moduleAccess = '[]';
     });
+
   }
 }
 

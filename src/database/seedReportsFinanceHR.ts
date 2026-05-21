@@ -234,12 +234,11 @@ export async function seedReportsFinanceHRData(options: SeedOptions = {}): Promi
             record.unit = m.unit;
             record.defaultDiscount = m.defaultDiscount;
             record.isActive = m.isActive;
-            record.createdAt = Date.now();
-            record.updatedAt = Date.now();
           });
         }
       });
       menuItems = await database.get<MenuItem>('menu_items').query().fetch();
+
 
       // --- Menu Ingredients (BOM for each menu item) ---
       // Map material names to their IDs
@@ -290,13 +289,12 @@ export async function seedReportsFinanceHRData(options: SeedOptions = {}): Promi
               record.materialName = material.name;
               record.quantity = def.quantity;
               record.unit = def.unit;
-              record.createdAt = Date.now();
-              record.updatedAt = Date.now();
             });
           }
         }
       });
     }
+
 
     // --- Suppliers ---
     let suppliers = await database.get<Supplier>('suppliers').query().fetch();
@@ -863,8 +861,6 @@ export async function seedReportsFinanceHRData(options: SeedOptions = {}): Promi
           record.discount = order.discount;
           record.note = order.note;
           record.truckId = order.truckId;
-          record.createdAt = order.createdAt;
-          record.updatedAt = order.updatedAt;
         });
       }
       for (const line of allOrderLines) {
@@ -876,8 +872,6 @@ export async function seedReportsFinanceHRData(options: SeedOptions = {}): Promi
           record.quantity = line.quantity;
           record.price = line.price;
           record.subtotal = line.subtotal;
-          record.createdAt = line.createdAt;
-          record.updatedAt = line.updatedAt;
         });
       }
 
@@ -892,8 +886,6 @@ export async function seedReportsFinanceHRData(options: SeedOptions = {}): Promi
           record.type = mv.type;
           record.referenceId = mv.referenceId;
           record.note = mv.note;
-          record.createdAt = mv.createdAt;
-          record.updatedAt = mv.updatedAt;
         });
       }
 
@@ -908,8 +900,6 @@ export async function seedReportsFinanceHRData(options: SeedOptions = {}): Promi
           record.note = tx.note;
           record.referenceType = tx.referenceType;
           record.referenceId = tx.referenceId;
-          record.createdAt = tx.createdAt;
-          record.updatedAt = tx.updatedAt;
         });
       }
 
@@ -928,8 +918,6 @@ export async function seedReportsFinanceHRData(options: SeedOptions = {}): Promi
           record.openedAt = shift.openedAt;
           record.closedAt = shift.closedAt;
           record.note = shift.note;
-          record.createdAt = shift.createdAt;
-          record.updatedAt = shift.updatedAt;
         });
       }
 
@@ -943,8 +931,6 @@ export async function seedReportsFinanceHRData(options: SeedOptions = {}): Promi
           record.checkIn = att.checkIn;
           record.checkOut = att.checkOut;
           record.note = att.note;
-          record.createdAt = att.createdAt;
-          record.updatedAt = att.updatedAt;
         });
       }
 
@@ -958,10 +944,9 @@ export async function seedReportsFinanceHRData(options: SeedOptions = {}): Promi
           record.amount = adv.amount;
           record.note = adv.note;
           record.date = adv.date;
-          record.createdAt = adv.createdAt;
-          record.updatedAt = adv.updatedAt;
         });
       }
+
     });
 
     // ====================================================================

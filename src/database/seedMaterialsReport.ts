@@ -277,10 +277,9 @@ export async function seedMaterialsReportData(options: SeedOptions = {}): Promis
           record.isRawMaterial = true;
           record.locationType = 'MAIN_WAREHOUSE';
           record.truckId = '';
-          record.createdAt = Date.now();
-          record.updatedAt = Date.now();
         });
         materialRecords[mat.name] = { id, name: mat.name, unit: mat.unit };
+
       }
     });
     console.log(`  ✅ Đã tạo ${MATERIALS.length} nguyên liệu`);
@@ -310,8 +309,6 @@ export async function seedMaterialsReportData(options: SeedOptions = {}): Promis
           record.discountStart = 0;
           record.discountEnd = 0;
           record.isActive = true;
-          record.createdAt = Date.now();
-          record.updatedAt = Date.now();
         });
 
         productRecords[prod.name] = { id: productId, name: prod.name, price: prod.price };
@@ -330,9 +327,8 @@ export async function seedMaterialsReportData(options: SeedOptions = {}): Promis
             record.materialName = mat.name;
             record.quantity = ing.quantity.toString();
             record.unit = mat.unit;
-            record.createdAt = Date.now();
-            record.updatedAt = Date.now();
           });
+
         }
       }
     });
@@ -533,8 +529,6 @@ export async function seedMaterialsReportData(options: SeedOptions = {}): Promis
           record.discount = order.discount;
           record.note = order.note;
           record.truckId = order.truckId;
-          record.createdAt = order.createdAt;
-          record.updatedAt = order.updatedAt;
         });
       }
 
@@ -549,8 +543,6 @@ export async function seedMaterialsReportData(options: SeedOptions = {}): Promis
           record.quantity = line.quantity;
           record.price = line.price;
           record.subtotal = line.subtotal;
-          record.createdAt = line.createdAt;
-          record.updatedAt = line.updatedAt;
         });
       }
 
@@ -565,10 +557,9 @@ export async function seedMaterialsReportData(options: SeedOptions = {}): Promis
           record.type = mv.type;
           record.referenceId = mv.referenceId;
           record.note = mv.note;
-          record.createdAt = mv.createdAt;
-          record.updatedAt = mv.updatedAt;
         });
       }
+
     });
 
     // ====================================================================

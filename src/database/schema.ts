@@ -218,6 +218,8 @@ export const schema = appSchema({
         { name: 'display_name', type: 'string' },
         { name: 'role', type: 'string' },
         { name: 'status', type: 'string' },
+        { name: 'employee_id', type: 'string' },
+        { name: 'module_access', type: 'string' },
         { name: 'created_at', type: 'number' },
         { name: 'updated_at', type: 'number', isIndexed: true },
       ],

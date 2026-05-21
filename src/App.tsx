@@ -65,12 +65,20 @@ function AppContent() {
   // Get accessible modules based on user permissions
   const accessibleModules = user ? getAccessibleModules(user.permissions) : [];
 
+  // For STAFF role, further filter by custom module access
+  const staffModuleAccess = user?.role === 'STAFF' ? (user as any).moduleAccess : null;
+  const filteredModules = staffModuleAccess
+    ? accessibleModules.filter((mod) => staffModuleAccess.includes(mod.key))
+    : accessibleModules;
+
+
   // If current active module is not accessible, switch to first accessible
   useEffect(() => {
-    if (accessibleModules.length > 0 && !accessibleModules.find((m) => m.key === activeModule)) {
-      setActiveModule(accessibleModules[0].key);
+    if (filteredModules.length > 0 && !filteredModules.find((m) => m.key === activeModule)) {
+      setActiveModule(filteredModules[0].key);
     }
-  }, [accessibleModules, activeModule]);
+  }, [filteredModules, activeModule]);
+
 
   if (!user) {
     return <LoginScreen />;
@@ -107,7 +115,8 @@ function AppContent() {
 
         {/* Navigation */}
         <div className="flex-1 p-4 space-y-1 overflow-y-auto">
-          {accessibleModules.map((mod) => {
+          {filteredModules.map((mod) => {
+
             const Icon = ICON_MAP[mod.icon] || Store;
             return (
               <SidebarItem

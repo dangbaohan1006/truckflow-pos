@@ -9,6 +9,8 @@ export default class User extends Model {
   @text('display_name') displayName!: string;
   @text('role') role!: string;
   @text('status') status!: string; // ACTIVE, INACTIVE
+  @text('employee_id') employeeId!: string; // Link to HR employee
+  @text('module_access') moduleAccess!: string; // JSON string of allowed module keys for STAFF role
   @readonly @field('created_at') createdAt!: number;
   @readonly @field('updated_at') updatedAt!: number;
 }
