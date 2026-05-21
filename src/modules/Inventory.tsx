@@ -114,8 +114,6 @@ export default function Inventory() {
             m.quantity = newItem.qty;
             m.type = 'RECEIVE';
             m.note = `Nhập kho ${newItem.locationType === 'TRUCK' ? 'xe' : 'tổng'} ban đầu`;
-            m.createdAt = Date.now();
-            m.updatedAt = Date.now();
           });
         }
       });
@@ -168,8 +166,6 @@ export default function Inventory() {
           m.type = 'RECEIVE';
           m.note = receiveData.note.trim() || 'Nhập kho';
           m.referenceId = receiveData.supplierId || '';
-          m.createdAt = now;
-          m.updatedAt = now;
         });
       });
 
@@ -222,8 +218,6 @@ export default function Inventory() {
           m.quantity = (-parsedQty).toString();
           m.type = 'SPOILAGE';
           m.note = spoilageData.note.trim() || 'Hàng hỏng/hết hạn';
-          m.createdAt = now;
-          m.updatedAt = now;
         });
       });
 
@@ -307,8 +301,6 @@ export default function Inventory() {
           m.type = 'TRANSFER_OUT';
           m.referenceId = transferData.toTruck;
           m.note = transferData.note.trim() || `Xuất kho tổng → xe ${transferData.toTruck}`;
-          m.createdAt = now;
-          m.updatedAt = now;
         });
 
         await database.get<StockMovement>('stock_movements').create((m: any) => {
@@ -319,8 +311,6 @@ export default function Inventory() {
           m.type = 'TRANSFER_IN';
           m.referenceId = transferData.toTruck;
           m.note = `Nhập kho xe ${transferData.toTruck} từ kho tổng`;
-          m.createdAt = now + 1;
-          m.updatedAt = now + 1;
         });
       });
 
@@ -374,8 +364,6 @@ export default function Inventory() {
           m.quantity = String(parsedQty - parseFloat(item.quantity));
           m.type = 'ADJUSTMENT';
           m.note = countData.note.trim() || 'Kiểm kê';
-          m.createdAt = now;
-          m.updatedAt = now;
         });
       });
 
@@ -428,8 +416,6 @@ export default function Inventory() {
           m.quantity = adjustData.deltaQty;
           m.type = 'ADJUSTMENT';
           m.note = adjustData.note.trim() || 'Điều chỉnh tồn kho';
-          m.createdAt = now;
-          m.updatedAt = now;
         });
       });
 
@@ -473,8 +459,6 @@ export default function Inventory() {
           b.materialName = bomData.materialName.trim();
           b.quantity = bomData.qty;
           b.unit = bomData.unit.trim() || 'pcs';
-          b.createdAt = Date.now();
-          b.updatedAt = Date.now();
         });
       });
       setShowBom(false);
@@ -504,8 +488,6 @@ export default function Inventory() {
           s.phone = supplierData.phone.trim();
           s.address = supplierData.address.trim();
           s.note = supplierData.note.trim();
-          s.createdAt = Date.now();
-          s.updatedAt = Date.now();
         });
       });
       setShowSupplier(false);
@@ -531,8 +513,6 @@ export default function Inventory() {
           t.code = truckData.code.trim().toUpperCase();
           t.status = truckData.status;
           t.location = truckData.location.trim();
-          t.createdAt = Date.now();
-          t.updatedAt = Date.now();
         });
       });
       setShowTruck(false);
