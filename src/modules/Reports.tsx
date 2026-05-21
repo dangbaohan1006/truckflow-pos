@@ -469,12 +469,12 @@ export default function Reports() {
       )}
 
       {activeTab === 'materials' && (
-        <div className="space-y-6">
-          {/* KHUNG 1: Hàng đã bán */}
+        <div className="grid grid-cols-2 gap-4">
+          {/* Góc trên trái: Hàng đã bán */}
           <div className="bg-white rounded-xl p-5 shadow-sm border border-surface-zen">
             <div className="flex items-center space-x-2 mb-4">
               <ShoppingCart size={18} className="text-primary" />
-              <h3 className="font-bold text-primary-dark">1. Hàng đã bán</h3>
+              <h3 className="font-bold text-primary-dark">Hàng đã bán</h3>
               <span className="text-xs text-text-secondary ml-auto">{soldProducts.length} mặt hàng</span>
             </div>
             <div className="overflow-x-auto max-h-80 overflow-y-auto">
@@ -512,91 +512,11 @@ export default function Reports() {
             </div>
           </div>
 
-          {/* KHUNG 2: Nguyên liệu (tổng từng nguyên liệu tính dựa trên số lượng hàng đã bán) */}
-          <div className="bg-white rounded-xl p-5 shadow-sm border border-surface-zen">
-            <div className="flex items-center space-x-2 mb-4">
-              <ClipboardList size={18} className="text-primary" />
-              <h3 className="font-bold text-primary-dark">2. Nguyên liệu</h3>
-              <span className="text-xs text-text-secondary ml-auto">{calculatedMaterials.length} loại</span>
-            </div>
-            <div className="overflow-x-auto max-h-80 overflow-y-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-surface-zen text-text-secondary text-xs uppercase tracking-wider">
-                  <tr>
-                    <th className="text-left p-2 font-medium whitespace-nowrap">Mã</th>
-                    <th className="text-left p-2 font-medium whitespace-nowrap">Tên</th>
-                    <th className="text-center p-2 font-medium whitespace-nowrap">ĐVT</th>
-                    <th className="text-right p-2 font-medium whitespace-nowrap">Số lượng</th>
-                    <th className="text-right p-2 font-medium whitespace-nowrap">Đơn giá</th>
-                    <th className="text-right p-2 font-medium whitespace-nowrap">Thành tiền</th>
-                    <th className="text-left p-2 font-medium whitespace-nowrap">Ghi chú</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {calculatedMaterials.map((m: any) => (
-                    <tr key={m.materialId} className="border-t border-surface-zen hover:bg-surface-zen/30">
-                      <td className="p-2 text-xs font-mono whitespace-nowrap">{m.sku}</td>
-                      <td className="p-2 font-medium whitespace-nowrap">{m.materialName}</td>
-                      <td className="p-2 text-center text-text-secondary whitespace-nowrap">{m.unit}</td>
-                      <td className="p-2 text-right font-bold text-primary whitespace-nowrap">{m.quantity.toFixed(2)}</td>
-                      <td className="p-2 text-right whitespace-nowrap">{formatCurrency(m.price)}</td>
-                      <td className="p-2 text-right font-bold whitespace-nowrap">{formatCurrency(m.amount)}</td>
-                      <td className="p-2 text-text-secondary text-xs max-w-[120px] truncate whitespace-nowrap">{m.note}</td>
-                    </tr>
-                  ))}
-                  {calculatedMaterials.length === 0 && (
-                    <tr><td colSpan={7} className="text-center py-8 text-gray-400">Chưa có dữ liệu</td></tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          {/* KHUNG 3: Nguyên liệu đã xuất (thực tế nhân viên kiểm kê sau khi kết ca) */}
-          <div className="bg-white rounded-xl p-5 shadow-sm border border-surface-zen">
-            <div className="flex items-center space-x-2 mb-4">
-              <Beaker size={18} className="text-accent" />
-              <h3 className="font-bold text-primary-dark">3. Nguyên liệu đã xuất</h3>
-              <span className="text-xs text-text-secondary ml-auto">{actualExportedMaterials.length} loại</span>
-            </div>
-            <div className="overflow-x-auto max-h-80 overflow-y-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-surface-zen text-text-secondary text-xs uppercase tracking-wider">
-                  <tr>
-                    <th className="text-left p-2 font-medium whitespace-nowrap">Mã</th>
-                    <th className="text-left p-2 font-medium whitespace-nowrap">Tên</th>
-                    <th className="text-center p-2 font-medium whitespace-nowrap">ĐVT</th>
-                    <th className="text-right p-2 font-medium whitespace-nowrap">Số lượng dùng</th>
-                    <th className="text-right p-2 font-medium whitespace-nowrap">Đơn giá</th>
-                    <th className="text-right p-2 font-medium whitespace-nowrap">Thành tiền</th>
-                    <th className="text-left p-2 font-medium whitespace-nowrap">Ghi chú</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {actualExportedMaterials.map((m: any) => (
-                    <tr key={m.materialId} className="border-t border-surface-zen hover:bg-surface-zen/30">
-                      <td className="p-2 text-xs font-mono whitespace-nowrap">{m.sku}</td>
-                      <td className="p-2 font-medium whitespace-nowrap">{m.materialName}</td>
-                      <td className="p-2 text-center text-text-secondary whitespace-nowrap">{m.unit}</td>
-                      <td className="p-2 text-right font-bold text-accent whitespace-nowrap">{m.quantity.toFixed(2)}</td>
-                      <td className="p-2 text-right whitespace-nowrap">{formatCurrency(m.price)}</td>
-                      <td className="p-2 text-right font-bold whitespace-nowrap">{formatCurrency(m.amount)}</td>
-                      <td className="p-2 text-text-secondary text-xs max-w-[120px] truncate whitespace-nowrap">{m.note}</td>
-                    </tr>
-                  ))}
-                  {actualExportedMaterials.length === 0 && (
-                    <tr><td colSpan={7} className="text-center py-8 text-gray-400">Chưa có dữ liệu</td></tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          {/* KHUNG 4: Chênh lệch (nguyên liệu - nguyên liệu đã xuất) */}
+          {/* Góc trên phải: Chênh lệch */}
           <div className="bg-white rounded-xl p-5 shadow-sm border border-surface-zen">
             <div className="flex items-center space-x-2 mb-4">
               <ArrowUpDown size={18} className="text-error-zen" />
-              <h3 className="font-bold text-primary-dark">4. Chênh lệch</h3>
+              <h3 className="font-bold text-primary-dark">Chênh lệch</h3>
               <span className="text-xs text-text-secondary ml-auto">{materialDiscrepancies.length} loại</span>
             </div>
             <div className="overflow-x-auto max-h-80 overflow-y-auto">
@@ -642,6 +562,86 @@ export default function Reports() {
                   })}
                   {materialDiscrepancies.length === 0 && (
                     <tr><td colSpan={11} className="text-center py-8 text-gray-400">Chưa có dữ liệu</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Góc dưới trái: Nguyên liệu (hệ thống) */}
+          <div className="bg-white rounded-xl p-5 shadow-sm border border-surface-zen">
+            <div className="flex items-center space-x-2 mb-4">
+              <ClipboardList size={18} className="text-primary" />
+              <h3 className="font-bold text-primary-dark">Nguyên liệu (hệ thống)</h3>
+              <span className="text-xs text-text-secondary ml-auto">{calculatedMaterials.length} loại</span>
+            </div>
+            <div className="overflow-x-auto max-h-80 overflow-y-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-surface-zen text-text-secondary text-xs uppercase tracking-wider">
+                  <tr>
+                    <th className="text-left p-2 font-medium whitespace-nowrap">Mã</th>
+                    <th className="text-left p-2 font-medium whitespace-nowrap">Tên</th>
+                    <th className="text-center p-2 font-medium whitespace-nowrap">ĐVT</th>
+                    <th className="text-right p-2 font-medium whitespace-nowrap">Số lượng</th>
+                    <th className="text-right p-2 font-medium whitespace-nowrap">Đơn giá</th>
+                    <th className="text-right p-2 font-medium whitespace-nowrap">Thành tiền</th>
+                    <th className="text-left p-2 font-medium whitespace-nowrap">Ghi chú</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {calculatedMaterials.map((m: any) => (
+                    <tr key={m.materialId} className="border-t border-surface-zen hover:bg-surface-zen/30">
+                      <td className="p-2 text-xs font-mono whitespace-nowrap">{m.sku}</td>
+                      <td className="p-2 font-medium whitespace-nowrap">{m.materialName}</td>
+                      <td className="p-2 text-center text-text-secondary whitespace-nowrap">{m.unit}</td>
+                      <td className="p-2 text-right font-bold text-primary whitespace-nowrap">{m.quantity.toFixed(2)}</td>
+                      <td className="p-2 text-right whitespace-nowrap">{formatCurrency(m.price)}</td>
+                      <td className="p-2 text-right font-bold whitespace-nowrap">{formatCurrency(m.amount)}</td>
+                      <td className="p-2 text-text-secondary text-xs max-w-[120px] truncate whitespace-nowrap">{m.note}</td>
+                    </tr>
+                  ))}
+                  {calculatedMaterials.length === 0 && (
+                    <tr><td colSpan={7} className="text-center py-8 text-gray-400">Chưa có dữ liệu</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Góc dưới phải: Nguyên liệu đã xuất (thực tế) */}
+          <div className="bg-white rounded-xl p-5 shadow-sm border border-surface-zen">
+            <div className="flex items-center space-x-2 mb-4">
+              <Beaker size={18} className="text-accent" />
+              <h3 className="font-bold text-primary-dark">Nguyên liệu đã xuất (thực tế)</h3>
+              <span className="text-xs text-text-secondary ml-auto">{actualExportedMaterials.length} loại</span>
+            </div>
+            <div className="overflow-x-auto max-h-80 overflow-y-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-surface-zen text-text-secondary text-xs uppercase tracking-wider">
+                  <tr>
+                    <th className="text-left p-2 font-medium whitespace-nowrap">Mã</th>
+                    <th className="text-left p-2 font-medium whitespace-nowrap">Tên</th>
+                    <th className="text-center p-2 font-medium whitespace-nowrap">ĐVT</th>
+                    <th className="text-right p-2 font-medium whitespace-nowrap">Số lượng dùng</th>
+                    <th className="text-right p-2 font-medium whitespace-nowrap">Đơn giá</th>
+                    <th className="text-right p-2 font-medium whitespace-nowrap">Thành tiền</th>
+                    <th className="text-left p-2 font-medium whitespace-nowrap">Ghi chú</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {actualExportedMaterials.map((m: any) => (
+                    <tr key={m.materialId} className="border-t border-surface-zen hover:bg-surface-zen/30">
+                      <td className="p-2 text-xs font-mono whitespace-nowrap">{m.sku}</td>
+                      <td className="p-2 font-medium whitespace-nowrap">{m.materialName}</td>
+                      <td className="p-2 text-center text-text-secondary whitespace-nowrap">{m.unit}</td>
+                      <td className="p-2 text-right font-bold text-accent whitespace-nowrap">{m.quantity.toFixed(2)}</td>
+                      <td className="p-2 text-right whitespace-nowrap">{formatCurrency(m.price)}</td>
+                      <td className="p-2 text-right font-bold whitespace-nowrap">{formatCurrency(m.amount)}</td>
+                      <td className="p-2 text-text-secondary text-xs max-w-[120px] truncate whitespace-nowrap">{m.note}</td>
+                    </tr>
+                  ))}
+                  {actualExportedMaterials.length === 0 && (
+                    <tr><td colSpan={7} className="text-center py-8 text-gray-400">Chưa có dữ liệu</td></tr>
                   )}
                 </tbody>
               </table>
