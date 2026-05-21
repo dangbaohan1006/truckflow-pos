@@ -2,13 +2,14 @@ import React, { useState, useEffect } from 'react';
 import {
   Settings as SettingsIcon, User, Shield, Printer, Wifi,
   RefreshCw, Info, Save, Check, Globe, Users, Key, Plus,
-  Lock, Unlock, Trash2, Edit3, UserPlus, Search,
+  Lock, Unlock, Trash2, Edit3, UserPlus, Search, History,
 } from 'lucide-react';
 import { database } from '../database/index.js';
 import UserModel from '../database/models/User.js';
 import { seedTestData } from '../database/seedTestData.js';
 import { seedMaterialsReportData } from '../database/seedMaterialsReport.js';
 import { useAuth } from '../auth/AuthContext.js';
+import { logActivity, getActivityLogs, clearActivityLogs, type ActivityRecord } from '../shared/activityLogger.js';
 import { ROLES, ROLE_LABELS, PERMISSIONS, type Role, type Permission } from '../auth/permissions.js';
 import { TabButton, Modal, Input, Select } from '../shared/components.js';
 import { generateId } from '../shared/utils.js';
@@ -40,6 +41,20 @@ export default function Settings() {
   const [searchTerm, setSearchTerm] = useState('');
   const [seedMessage, setSeedMessage] = useState('');
   const [materialsSeedMessage, setMaterialsSeedMessage] = useState('');
+  const [activities, setActivities] = useState<ActivityRecord[]>([]);
+  const [activitySearchTerm, setActivitySearchTerm] = useState('');
+  const [activityRoleFilter, setActivityRoleFilter] = useState('all');
+
+  const loadActivities = async () => {
+    const logs = await getActivityLogs();
+    setActivities(logs);
+  };
+
+  useEffect(() => {
+    if (activeTab === 'activities') {
+      loadActivities();
+    }
+  }, [activeTab]);
 
   const [config, setConfig] = useState({
     storeName: 'TruckFlow POS',
@@ -205,6 +220,7 @@ export default function Settings() {
     { key: 'ingredients', label: 'Nguyên liệu', show: isAdmin || hasPermission(PERMISSIONS.SETTINGS_INGREDIENT) },
     { key: 'units', label: 'Đơn vị', show: isAdmin || hasPermission(PERMISSIONS.SETTINGS_INGREDIENT) },
     { key: 'users', label: 'Người dùng', show: canManageUsers || hasPermission(PERMISSIONS.USER_VIEW) },
+    { key: 'activities', label: 'Lịch sử hoạt động', show: isAdmin },
     { key: 'sync', label: 'Đồng bộ', show: hasPermission(PERMISSIONS.SETTINGS_SYNC) || isAdmin },
     { key: 'printer', label: 'Máy in', show: hasPermission(PERMISSIONS.SETTINGS_PRINTER) || isAdmin },
     { key: 'about', label: 'Về phần mềm', show: true },
@@ -478,6 +494,109 @@ export default function Settings() {
               <p>Cơ sở dữ liệu: WatermelonDB + PostgreSQL</p>
               <p>Phân quyền: RBAC với 8 vai trò</p>
               <p>© 2026 TruckFlow. All rights reserved.</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'activities' && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between flex-wrap gap-3">
+            <div className="flex items-center space-x-3 flex-wrap gap-2">
+              <div className="relative w-72">
+                <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary" />
+                <input
+                  type="text"
+                  placeholder="Tìm kiếm hoạt động, tên, chi tiết..."
+                  value={activitySearchTerm}
+                  onChange={(e) => setActivitySearchTerm(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2.5 bg-white border border-surface-zen rounded-lg focus:ring-2 focus:ring-primary/30 outline-none text-sm"
+                />
+              </div>
+              <select
+                value={activityRoleFilter}
+                onChange={(e) => setActivityRoleFilter(e.target.value)}
+                className="px-4 py-2.5 bg-white border border-surface-zen rounded-lg focus:ring-2 focus:ring-primary/30 outline-none text-sm min-w-[150px]"
+              >
+                <option value="all">Tất cả vai trò</option>
+                {Object.entries(ROLE_LABELS).map(([role, label]) => (
+                  <option key={role} value={role}>{label}</option>
+                ))}
+              </select>
+            </div>
+            {activities.length > 0 && (
+              <button
+                onClick={async () => {
+                  if (confirm('Bạn có chắc chắn muốn xóa vĩnh viễn toàn bộ lịch sử hoạt động không? Hành động này không thể hoàn tác.')) {
+                    await clearActivityLogs();
+                    toast.success('Đã xóa toàn bộ lịch sử hoạt động');
+                    loadActivities();
+                  }
+                }}
+                className="px-4 py-2.5 bg-error-zen/10 text-error-zen hover:bg-error-zen hover:text-white rounded-lg text-sm font-medium transition-all"
+              >
+                Xóa lịch sử
+              </button>
+            )}
+          </div>
+
+          <div className="bg-white rounded-xl shadow-sm border border-surface-zen overflow-hidden">
+            <div className="max-h-[60vh] overflow-y-auto divide-y divide-surface-zen">
+              {activities
+                .filter((act) => {
+                  const matchesSearch =
+                    !activitySearchTerm ||
+                    act.action.toLowerCase().includes(activitySearchTerm.toLowerCase()) ||
+                    act.details.toLowerCase().includes(activitySearchTerm.toLowerCase()) ||
+                    act.username.toLowerCase().includes(activitySearchTerm.toLowerCase()) ||
+                    act.displayName.toLowerCase().includes(activitySearchTerm.toLowerCase());
+                  const matchesRole = activityRoleFilter === 'all' || act.role === activityRoleFilter;
+                  return matchesSearch && matchesRole;
+                })
+                .map((act) => {
+                  // Pastel colors for different roles
+                  const roleColors: Record<string, string> = {
+                    SYSTEM_ADMIN: 'bg-orange-50/70 border-orange-100 hover:bg-orange-100/50 text-orange-950',
+                    STORE_MANAGER: 'bg-purple-50/70 border-purple-100 hover:bg-purple-100/50 text-purple-950',
+                    CASHIER: 'bg-blue-50/70 border-blue-100 hover:bg-blue-100/50 text-blue-950',
+                    WAREHOUSE: 'bg-amber-50/70 border-amber-100 hover:bg-amber-100/50 text-amber-950',
+                    HR: 'bg-rose-50/70 border-rose-100 hover:bg-rose-100/50 text-rose-950',
+                    ACCOUNTANT: 'bg-emerald-50/70 border-emerald-100 hover:bg-emerald-100/50 text-emerald-950',
+                    REPORT_VIEWER: 'bg-cyan-50/70 border-cyan-100 hover:bg-cyan-100/50 text-cyan-950',
+                    STAFF: 'bg-slate-50/70 border-slate-100 hover:bg-slate-100/50 text-slate-950',
+                  };
+                  const colorClass = roleColors[act.role] || 'bg-slate-50 border-slate-100 hover:bg-slate-100/50';
+
+                  return (
+                    <div
+                      key={act.id}
+                      className={`p-4 border-l-4 transition-all flex items-start justify-between gap-4 ${colorClass}`}
+                    >
+                      <div className="space-y-1">
+                        <div className="flex items-center space-x-2 flex-wrap gap-1">
+                          <span className="font-semibold text-sm">{act.action}</span>
+                          <span className="text-xs text-text-secondary opacity-80">•</span>
+                          <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-black/5">
+                            {ROLE_LABELS[act.role as Role] || act.role}
+                          </span>
+                          <span className="text-xs font-semibold">
+                            {act.displayName} ({act.username})
+                          </span>
+                        </div>
+                        <p className="text-sm text-text-primary/90">{act.details}</p>
+                      </div>
+                      <span className="text-[11px] text-text-secondary whitespace-nowrap">
+                        {new Date(act.timestamp).toLocaleString('vi-VN')}
+                      </span>
+                    </div>
+                  );
+                })}
+              {activities.length === 0 && (
+                <div className="text-center py-16 text-gray-400 space-y-2">
+                  <History size={40} className="mx-auto text-gray-300 stroke-[1.5]" />
+                  <p className="text-sm">Chưa ghi nhận hoạt động nào trên hệ thống</p>
+                </div>
+              )}
             </div>
           </div>
         </div>

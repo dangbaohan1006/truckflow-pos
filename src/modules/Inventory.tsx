@@ -15,9 +15,12 @@ import { receiveInventory, issueInventory, countInventory, adjustInventory } fro
 import { formatCurrency, formatDateTime, generateId } from '../shared/utils.js';
 import { Modal, Input, Select, TabButton } from '../shared/components.js';
 import { useToast } from '../shared/ToastContext.js';
+import { useAuth } from '../auth/AuthContext.js';
+import { logActivity } from '../shared/activityLogger.js';
 
 export default function Inventory() {
   const toast = useToast();
+  const { user: currentUser } = useAuth();
   const [items, setItems] = useState<any[]>([]);
   const [movements, setMovements] = useState<any[]>([]);
   const [bomRecords, setBomRecords] = useState<any[]>([]);
@@ -129,8 +132,12 @@ export default function Inventory() {
 
       setShowAddItem(false);
       const addedName = newItem.name;
+      const addedQty = newItem.qty;
+      const addedUnit = newItem.unit;
+      const addedLoc = newItem.locationType === 'TRUCK' ? 'kho xe' : 'kho tổng';
       setNewItem({ name: '', unit: 'pcs', qty: '0', price: '0', category: '', isRawMaterial: false, reorderLevel: '10', locationType: 'MAIN_WAREHOUSE', truckId: '' });
       toast.success(`Đã thêm thành công hàng hóa "${addedName}"!`);
+      logActivity(currentUser, 'Thêm hàng hóa', `Thêm mới hàng hóa "${addedName}" (${addedQty} ${addedUnit}) vào ${addedLoc}`);
     } catch (err: any) {
       toast.error(`Lỗi tạo hàng hóa: ${err.message || 'Không thể thực hiện'}`);
     }
@@ -177,8 +184,10 @@ export default function Inventory() {
       ).catch((error) => console.warn('Inventory sync failed:', error.message));
 
       setShowReceive(false);
+      const receivedQty = receiveData.qty;
       setReceiveData({ itemId: '', qty: '0', note: '', supplierId: '' });
-      toast.success(`Đã nhập kho ${receiveData.qty} ${item.unit || ''} "${item.name}"`);
+      toast.success(`Đã nhập kho ${receivedQty} ${item.unit || ''} "${item.name}"`);
+      logActivity(currentUser, 'Nhập kho', `Nhập ${receivedQty} ${item.unit || ''} "${item.name}" vào ${item.locationType === 'TRUCK' ? 'kho xe' : 'kho tổng'}`);
     } catch (err: any) {
       toast.error(`Lỗi nhập kho: ${err.message || 'Không thể thực hiện'}`);
     }
@@ -231,6 +240,7 @@ export default function Inventory() {
       setShowSpoilage(false);
       setSpoilageData({ itemId: '', qty: '0', note: '' });
       toast.warning(`Đã ghi nhận hủy ${parsedQty} "${item.name}" do hỏng/hết hạn!`);
+      logActivity(currentUser, 'Hủy hàng hỏng', `Hủy ${parsedQty} ${item.unit || ''} "${item.name}" do hỏng/hết hạn - Lý do: ${spoilageData.note.trim() || 'Không có ghi chú'}`);
     } catch (err: any) {
       toast.error(`Lỗi ghi nhận hàng hỏng: ${err.message || 'Không thể thực hiện'}`);
     }
@@ -329,8 +339,10 @@ export default function Inventory() {
       ).catch((error) => console.warn('Inventory sync failed:', error.message));
 
       setShowTransfer(false);
+      const targetTruck = trucks.find(t => t.id === transferData.toTruck)?.name || transferData.toTruck;
       setTransferData({ itemId: '', qty: '0', fromLocation: 'MAIN_WAREHOUSE', toTruck: '', note: '' });
       toast.success(`Đã chuyển thành công ${parsedQty} hàng từ kho tổng sang xe!`);
+      logActivity(currentUser, 'Xuất kho cho xe', `Chuyển ${parsedQty} ${sourceItem.unit || ''} "${sourceItem.name}" từ kho tổng sang xe "${targetTruck}"`);
     } catch (err: any) {
       toast.error(`Lỗi chuyển kho: ${err.message || 'Không thể thực hiện'}`);
     }
@@ -375,8 +387,11 @@ export default function Inventory() {
       ).catch((error) => console.warn('Inventory sync failed:', error.message));
 
       setShowCount(false);
+      const countedVal = countData.countedQty;
+      const difference = parsedQty - parseFloat(item.quantity);
       setCountData({ itemId: '', countedQty: '0', note: '' });
       toast.success(`Đã kiểm kê và cập nhật thành công tồn kho "${item.name}"!`);
+      logActivity(currentUser, 'Kiểm kê kho', `Kiểm kê hàng "${item.name}" - Tồn thực tế: ${countedVal} ${item.unit || ''} (Chênh lệch: ${difference >= 0 ? '+' : ''}${difference})`);
     } catch (err: any) {
       toast.error(`Lỗi kiểm kê: ${err.message || 'Không thể thực hiện'}`);
     }
@@ -427,8 +442,11 @@ export default function Inventory() {
       ).catch((error) => console.warn('Inventory sync failed:', error.message));
 
       setShowAdjust(false);
+      const deltaVal = adjustData.deltaQty;
+      const deltaNum = parseFloat(deltaVal);
       setAdjustData({ itemId: '', deltaQty: '0', note: '' });
       toast.success(`Đã điều chỉnh thành công tồn kho "${item.name}"!`);
+      logActivity(currentUser, 'Điều chỉnh kho', `Điều chỉnh tồn kho "${item.name}" - Số lượng thay đổi: ${deltaNum >= 0 ? '+' : ''}${deltaVal} ${item.unit || ''}`);
     } catch (err: any) {
       toast.error(`Lỗi điều chỉnh tồn kho: ${err.message || 'Không thể thực hiện'}`);
     }
@@ -463,8 +481,12 @@ export default function Inventory() {
       });
       setShowBom(false);
       const prodName = bomData.productName;
+      const materialName = bomData.materialName;
+      const bomQty = bomData.qty;
+      const bomUnit = bomData.unit;
       setBomData({ productId: '', productName: '', materialId: '', materialName: '', qty: '1', unit: 'pcs' });
       toast.success(`Đã thêm công thức thành công cho "${prodName}"!`);
+      logActivity(currentUser, 'Thêm công thức BOM', `Thiết lập định mức cho "${prodName}" dùng ${bomQty} ${bomUnit} "${materialName}"`);
     } catch (err: any) {
       toast.error(`Lỗi lưu công thức: ${err.message || 'Không thể thực hiện'}`);
     }
@@ -494,6 +516,7 @@ export default function Inventory() {
       const supName = supplierData.name;
       setSupplierData({ name: '', phone: '', address: '', note: '' });
       toast.success(`Đã thêm thành công nhà cung cấp "${supName}"!`);
+      logActivity(currentUser, 'Thêm nhà cung cấp', `Thêm nhà cung cấp mới "${supName}"`);
     } catch (err: any) {
       toast.error(`Lỗi thêm nhà cung cấp: ${err.message || 'Không thể thực hiện'}`);
     }
@@ -517,8 +540,10 @@ export default function Inventory() {
       });
       setShowTruck(false);
       const trkName = truckData.name;
+      const trkCode = truckData.code;
       setTruckData({ name: '', code: '', status: 'ACTIVE', location: '' });
       toast.success(`Đã thêm thành công xe lưu động "${trkName}"!`);
+      logActivity(currentUser, 'Thêm xe lưu động', `Thêm xe mới "${trkName}" (Mã: ${trkCode.toUpperCase()})`);
     } catch (err: any) {
       toast.error(`Lỗi thêm thông tin xe: ${err.message || 'Không thể thực hiện'}`);
     }
