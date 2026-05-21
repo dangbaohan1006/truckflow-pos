@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   Store, Package, BarChart3, Settings, Wifi, WifiOff, Cloud, RefreshCw,
-  Wallet, Users, DollarSign, LogOut, Shield, User,
+  Wallet, Users, DollarSign, LogOut, Shield, User, ClipboardList,
 } from 'lucide-react';
 import { mySync } from './database/index.js';
 import { AuthProvider, useAuth } from './auth/AuthContext.js';
@@ -14,10 +14,11 @@ import Reports from './modules/Reports.js';
 import Finance from './modules/Finance.js';
 import HR from './modules/HR.js';
 import SettingsPage from './modules/Settings.js';
+import StaffOrders from './modules/StaffOrders.js';
 import { ToastProvider } from './shared/ToastContext.js';
 
 const ICON_MAP: Record<string, any> = {
-  Store, Package, BarChart3, DollarSign, Users, Settings,
+  Store, Package, BarChart3, DollarSign, Users, Settings, ClipboardList,
 };
 
 const SidebarItem = ({ icon: Icon, label, active, onClick, badge }: any) => (
@@ -183,6 +184,7 @@ function AppContent() {
               {activeModule === 'reports' && <Reports />}
               {activeModule === 'finance' && <Finance />}
               {activeModule === 'hr' && <HR />}
+              {activeModule === 'customer-orders' && <StaffOrders />}
               {activeModule === 'settings' && <SettingsPage />}
             </motion.div>
           </AnimatePresence>

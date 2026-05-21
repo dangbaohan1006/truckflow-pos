@@ -58,6 +58,12 @@ export const PERMISSIONS = {
   REPORT_VIEW: 'report:view',
   REPORT_EXPORT: 'report:export',
 
+  // Customer Orders
+  ORDER_VIEW: 'order:view',
+  ORDER_CONFIRM: 'order:confirm',
+  ORDER_EDIT: 'order:edit',
+  ORDER_CANCEL: 'order:cancel',
+
   // System
   SYSTEM_ADMIN: 'system:admin',
 } as const;
@@ -132,6 +138,10 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     PERMISSIONS.SETTINGS_SYNC,
     PERMISSIONS.SETTINGS_TEMPLATE,
     PERMISSIONS.SETTINGS_INGREDIENT,
+    PERMISSIONS.ORDER_VIEW,
+    PERMISSIONS.ORDER_CONFIRM,
+    PERMISSIONS.ORDER_EDIT,
+    PERMISSIONS.ORDER_CANCEL,
   ],
 
   // Cashier: sales only
@@ -142,6 +152,9 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     PERMISSIONS.SALES_PRINT,
     PERMISSIONS.SALES_VIEW,
     PERMISSIONS.INV_VIEW,
+    PERMISSIONS.ORDER_VIEW,
+    PERMISSIONS.ORDER_CONFIRM,
+    PERMISSIONS.ORDER_EDIT,
   ],
 
   // Warehouse: inventory only
@@ -216,6 +229,7 @@ export const MODULE_ACCESS: ModuleAccess[] = [
   { key: 'reports', label: 'Báo cáo', icon: 'BarChart3', requiredPermissions: [PERMISSIONS.REPORT_VIEW] },
   { key: 'finance', label: 'Thu chi', icon: 'DollarSign', requiredPermissions: [PERMISSIONS.FIN_VIEW] },
   { key: 'hr', label: 'Nhân sự', icon: 'Users', requiredPermissions: [PERMISSIONS.HR_VIEW] },
+  { key: 'customer-orders', label: 'Đơn khách', icon: 'ClipboardList', requiredPermissions: [PERMISSIONS.ORDER_VIEW] },
   { key: 'settings', label: 'Cài đặt', icon: 'Settings', requiredPermissions: [PERMISSIONS.SYSTEM_ADMIN, PERMISSIONS.SETTINGS_STORE] },
 ];
 

@@ -9,6 +9,7 @@
   ],
   "routes": [
     { "handle": "filesystem" },
+    { "src": "^\\/order\\.html", "dest": "/order.html" },
     { "src": "\\/(.*)", "dest": "/index.html" }
   ]
 }

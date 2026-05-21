@@ -13,6 +13,7 @@ from src.core.database import engine, Base
 from src.modules.sales.models import PosOrder, PosOrderLine
 from src.modules.inventory.models import InventoryLevel, StockMove, MrpBOM, MrpBOMLine
 from src.models.outbox import OutboxEvent
+from src.modules.customer_order.models import CustomerOrder, CustomerOrderItem, OrderNotification
 
 # 4. Lệnh "Thần thánh": Tự động quét và tạo toàn bộ bảng trên Supabase nếu chưa có
 Base.metadata.create_all(bind=engine)
@@ -44,6 +45,10 @@ app.include_router(inventory_sync_router)
 # Import và gắn Router của module Auth (JWT Authentication)
 from src.modules.auth.router import router as auth_router
 app.include_router(auth_router)
+
+# Import và gắn Router của module Customer Order
+from src.modules.customer_order.router import router as customer_order_router
+app.include_router(customer_order_router)
 
 @app.get("/api/health")
 async def health_check():
