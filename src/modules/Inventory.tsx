@@ -3,7 +3,7 @@ import {
   Package, Plus, Search, X, Check, AlertTriangle, ArrowRightLeft,
   PackagePlus, PackageMinus, Warehouse, Truck as TruckIcon,
   Building2, Phone, MapPin, Utensils, FlaskConical,
-  Store, ArrowRight, ArrowLeft,
+  Store, ArrowRight, ArrowLeft, Pencil,
 } from 'lucide-react';
 import { database } from '../database/index.js';
 import InventoryItem from '../database/models/InventoryItem.js';
@@ -33,6 +33,7 @@ export default function Inventory() {
   const [showTransfer, setShowTransfer] = useState(false);
   const [showCount, setShowCount] = useState(false);
   const [showAdjust, setShowAdjust] = useState(false);
+  const [showEditQty, setShowEditQty] = useState(false);
   const [showBom, setShowBom] = useState(false);
   const [showSupplier, setShowSupplier] = useState(false);
   const [showTruck, setShowTruck] = useState(false);
@@ -45,6 +46,7 @@ export default function Inventory() {
   const [transferData, setTransferData] = useState({ itemId: '', qty: '0', fromLocation: 'MAIN_WAREHOUSE', toTruck: '', note: '' });
   const [countData, setCountData] = useState({ itemId: '', countedQty: '0', note: '' });
   const [adjustData, setAdjustData] = useState({ itemId: '', deltaQty: '0', note: '' });
+  const [editQtyData, setEditQtyData] = useState({ itemId: '', newQty: '0', note: '' });
   const [bomData, setBomData] = useState({ productId: '', productName: '', materialId: '', materialName: '', qty: '1', unit: 'pcs' });
   const [supplierData, setSupplierData] = useState({ name: '', phone: '', address: '', note: '' });
   const [truckData, setTruckData] = useState({ name: '', code: '', status: 'ACTIVE', location: '' });
@@ -452,6 +454,40 @@ export default function Inventory() {
     }
   };
 
+  const editQuantity = async () => {
+    if (!editQtyData.itemId) {
+      toast.error('Vui lòng chọn hàng hóa cần sửa số lượng!');
+      return;
+    }
+    const parsedQty = parseFloat(editQtyData.newQty);
+    if (isNaN(parsedQty) || parsedQty < 0) {
+      toast.error('Số lượng mới không hợp lệ (không thể nhỏ hơn 0)!');
+      return;
+    }
+
+    const item = items.find((entry: any) => entry.id === editQtyData.itemId);
+    if (!item) {
+      toast.error('Không tìm thấy hàng hóa đã chọn!');
+      return;
+    }
+
+    const oldQty = item.quantity;
+    try {
+      await database.write(async () => {
+        await item.update((i: any) => { i.quantity = String(parsedQty); });
+      });
+
+      setShowEditQty(false);
+      const editedName = item.name;
+      const editedUnit = item.unit;
+      setEditQtyData({ itemId: '', newQty: '0', note: '' });
+      toast.success(`Đã sửa số lượng "${editedName}" từ ${oldQty} thành ${parsedQty} ${editedUnit || ''}!`);
+      logActivity(currentUser, 'Sửa số lượng tồn kho', `Sửa số lượng "${editedName}" từ ${oldQty} thành ${parsedQty} ${editedUnit || ''} - Lý do: ${editQtyData.note.trim() || 'Chỉnh sửa typo'}`);
+    } catch (err: any) {
+      toast.error(`Lỗi sửa số lượng: ${err.message || 'Không thể thực hiện'}`);
+    }
+  };
+
   const addBom = async () => {
     if (!bomData.productName.trim() || !bomData.productId.trim()) {
       toast.error('Vui lòng nhập tên và mã sản phẩm (thông tin bắt buộc)!');
@@ -613,6 +649,9 @@ export default function Inventory() {
               </button>
               <button onClick={() => setShowAdjust(true)} className="px-4 py-2 bg-amber-600 text-white rounded-lg text-sm font-medium hover:bg-amber-700 transition-all flex items-center space-x-1">
                 <ArrowRight size={16} /><span>Điều chỉnh</span>
+              </button>
+              <button onClick={() => setShowEditQty(true)} className="px-4 py-2 bg-violet-600 text-white rounded-lg text-sm font-medium hover:bg-violet-700 transition-all flex items-center space-x-1">
+                <Pencil size={16} /><span>Sửa số lượng</span>
               </button>
               <button onClick={() => setShowSpoilage(true)} className="px-4 py-2 bg-error-zen text-white rounded-lg text-sm font-medium hover:bg-red-700 transition-all flex items-center space-x-1">
                 <PackageMinus size={16} /><span>Hàng hỏng</span>
@@ -958,6 +997,34 @@ export default function Inventory() {
             <div className="flex justify-end space-x-2 pt-2">
               <button onClick={() => setShowTransfer(false)} className="px-4 py-2 bg-surface-zen text-text-secondary rounded-lg text-sm font-medium hover:bg-gray-200 transition-all">Hủy</button>
               <button onClick={transferToTruck} className="px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary-dark transition-all">Xác nhận xuất</button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* Modal: Edit Quantity (không ảnh hưởng báo cáo nguyên liệu) */}
+      {showEditQty && (
+        <Modal title="Sửa số lượng tồn kho" onClose={() => setShowEditQty(false)}>
+          <div className="space-y-3">
+            <div className="bg-violet-50 border border-violet-200 rounded-lg p-3 text-sm text-violet-700 flex items-start space-x-2">
+              <AlertTriangle size={16} className="mt-0.5 shrink-0" />
+              <span>Chức năng này chỉ sửa số lượng trực tiếp trong kho, <strong>không tạo phiếu xuất/nhập</strong> và <strong>không ảnh hưởng đến báo cáo nguyên liệu</strong>. Dùng khi nhập sai số lượng (typo).</span>
+            </div>
+            <Select label={<>Chọn hàng hóa cần sửa <span className="text-red-500 font-bold ml-0.5">*</span></>} value={editQtyData.itemId} onChange={(e: any) => {
+              const selectedItem = items.find((i: any) => i.id === e.target.value);
+              setEditQtyData({ ...editQtyData, itemId: e.target.value, newQty: selectedItem ? selectedItem.quantity : '0' });
+            }}
+              options={[{ value: '', label: '-- Chọn hàng hóa --' }, ...items.map((i: any) => ({ value: i.id, label: `${i.name} (tồn: ${i.quantity} ${i.unit})` }))]} />
+            {editQtyData.itemId && (
+              <div className="bg-surface-zen rounded-lg p-3 text-sm">
+                <p className="text-text-secondary">Số lượng hiện tại: <strong className="text-text-main">{items.find((i: any) => i.id === editQtyData.itemId)?.quantity || '0'}</strong></p>
+              </div>
+            )}
+            <Input label={<>Số lượng mới <span className="text-red-500 font-bold ml-0.5">*</span></>} type="number" value={editQtyData.newQty} onChange={(e: any) => setEditQtyData({ ...editQtyData, newQty: e.target.value })} placeholder="Nhập số lượng mới" />
+            <Input label="Lý do sửa" value={editQtyData.note} onChange={(e: any) => setEditQtyData({ ...editQtyData, note: e.target.value })} placeholder="VD: Nhập sai số lượng, typo..." />
+            <div className="flex justify-end space-x-2 pt-2">
+              <button onClick={() => setShowEditQty(false)} className="px-4 py-2 bg-surface-zen text-text-secondary rounded-lg text-sm font-medium hover:bg-gray-200 transition-all">Hủy</button>
+              <button onClick={editQuantity} className="px-4 py-2 bg-violet-600 text-white rounded-lg text-sm font-medium hover:bg-violet-700 transition-all">Xác nhận sửa</button>
             </div>
           </div>
         </Modal>
