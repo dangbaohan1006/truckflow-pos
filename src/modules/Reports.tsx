@@ -88,72 +88,97 @@ export default function Reports() {
   const soldProducts = useMemo(() => {
     const start = getStartTime();
     const end = getEndTime();
-    const productMap: Record<string, { id: string; name: string; qty: number; revenue: number }> = {};
-    orderLines.filter((l: any) => {
+    return orderLines.filter((l: any) => {
       const order = orders.find((o: any) => o.id === l.orderId);
       return order && order.createdAt >= start && order.createdAt <= end && order.status === 'COMPLETED';
-    }).forEach((line: any) => {
-      if (!productMap[line.productId]) {
-        productMap[line.productId] = { id: line.productId, name: line.productName, qty: 0, revenue: 0 };
-      }
-      productMap[line.productId].qty += parseInt(line.quantity) || 0;
-      productMap[line.productId].revenue += parseFloat(line.subtotal) || 0;
-    });
-    return Object.values(productMap).sort((a: any, b: any) => b.qty - a.qty);
-  }, [orderLines, orders, startDate, endDate]);
+    }).map((line: any) => {
+      const order = orders.find((o: any) => o.id === line.orderId);
+      const item = items.find((i: any) => i.id === line.productId);
+      return {
+        id: line.id,
+        productId: line.productId,
+        date: order ? order.createdAt : Date.now(),
+        sku: item ? item.sku : 'SP-' + line.productId.slice(-6).toUpperCase(),
+        name: line.productName,
+        unit: item ? item.unit : 'Ly',
+        qty: parseInt(line.quantity) || 0,
+        price: parseFloat(line.price) || 0,
+        revenue: parseFloat(line.subtotal) || 0,
+        note: order?.note || '-',
+      };
+    }).sort((a: any, b: any) => b.date - a.date);
+  }, [orderLines, orders, items, startDate, endDate]);
 
   // KHUNG 2: Nguyên liệu tương ứng tính từ BOM (menu_ingredients)
   const calculatedMaterials = useMemo(() => {
-    const matMap: Record<string, { materialId: string; materialName: string; quantity: number; unit: string }> = {};
+    const matMap: Record<string, { materialId: string; sku: string; materialName: string; quantity: number; unit: string; price: number; amount: number; note: string }> = {};
     for (const product of soldProducts) {
-      const ings = menuIngredients.filter((ing: any) => ing.menuItemId === product.id);
+      const ings = menuIngredients.filter((ing: any) => ing.menuItemId === product.productId);
       for (const ing of ings) {
         if (!matMap[ing.materialId]) {
+          const materialItem = items.find((i: any) => i.id === ing.materialId || i.name === ing.materialName);
+          const price = materialItem ? parseFloat(materialItem.price || '0') : 0;
           matMap[ing.materialId] = {
             materialId: ing.materialId,
+            sku: materialItem ? materialItem.sku : 'NL-' + ing.materialId.slice(-6).toUpperCase(),
             materialName: ing.materialName,
             quantity: 0,
-            unit: ing.unit,
+            unit: ing.unit || materialItem?.unit || 'Gram',
+            price,
+            amount: 0,
+            note: 'Định mức BOM hệ thống',
           };
         }
         matMap[ing.materialId].quantity += parseFloat(ing.quantity) * product.qty;
       }
     }
-    return Object.values(matMap).sort((a: any, b: any) => b.quantity - a.quantity);
-  }, [soldProducts, menuIngredients]);
+    return Object.values(matMap).map((m: any) => {
+      m.amount = m.quantity * m.price;
+      return m;
+    }).sort((a: any, b: any) => b.quantity - a.quantity);
+  }, [soldProducts, menuIngredients, items]);
 
-  // KHUNG 3: Nguyên liệu đã xuất thực tế (stock movements: TRANSFER_OUT, SALE of raw materials)
+  // KHUNG 3: Nguyên liệu đã xuất thực tế (số dư đầu ngày - số dư cuối ngày)
   const actualExportedMaterials = useMemo(() => {
     const start = getStartTime();
     const end = getEndTime();
-    const matMap: Record<string, { materialId: string; materialName: string; quantity: number; unit: string }> = {};
-    // Get raw material items
-    const rawMaterialIds = new Set(items.filter((i: any) => i.isRawMaterial).map((i: any) => i.id));
-    const rawMaterialNames = new Set(items.filter((i: any) => i.isRawMaterial).map((i: any) => i.name));
+    const rawMaterials = items.filter((i: any) => i.isRawMaterial);
 
-    movements.filter((m: any) => {
-      // Only include movements within date range
-      if (m.createdAt < start || m.createdAt > end) return false;
-      // Include TRANSFER_OUT (xuất kho cho xe) and SALE (bán hàng - for raw materials)
-      // Also include ADJUSTMENT for raw materials
-      const isRelevantType = m.type === 'TRANSFER_OUT' || m.type === 'SALE' || m.type === 'ADJUSTMENT';
-      if (!isRelevantType) return false;
-      // Only raw materials
-      return rawMaterialIds.has(m.itemId) || rawMaterialNames.has(m.itemName);
-    }).forEach((m: any) => {
-      if (!matMap[m.itemId]) {
-        const item = items.find((i: any) => i.id === m.itemId);
-        matMap[m.itemId] = {
-          materialId: m.itemId,
-          materialName: m.itemName,
-          quantity: 0,
-          unit: item ? item.unit : '',
-        };
-      }
-      // quantity is negative for exports (TRANSFER_OUT, SALE)
-      matMap[m.itemId].quantity += Math.abs(parseFloat(m.quantity));
-    });
-    return Object.values(matMap).sort((a: any, b: any) => b.quantity - a.quantity);
+    return rawMaterials.map((item: any) => {
+      // 1. Movements after the end of the period
+      const movementsAfter = movements.filter((m: any) => m.itemId === item.id && m.createdAt > end);
+      const qtyAfter = movementsAfter.reduce((sum: number, m: any) => sum + (parseFloat(m.quantity) || 0), 0);
+
+      // 2. Quantity at the end of the period
+      const balanceEnd = parseFloat(item.quantity) - qtyAfter;
+
+      // 3. Movements during the period
+      const movementsIn = movements.filter((m: any) => m.itemId === item.id && m.createdAt >= start && m.createdAt <= end);
+      const qtyIn = movementsIn.reduce((sum: number, m: any) => sum + (parseFloat(m.quantity) || 0), 0);
+
+      // 4. Quantity at the start of the period
+      const balanceStart = balanceEnd - qtyIn;
+
+      // 5. Used quantity = balanceStart - balanceEnd
+      const usedQty = Math.max(0, balanceStart - balanceEnd);
+
+      const price = parseFloat(item.price || '0');
+      const amount = usedQty * price;
+
+      return {
+        materialId: item.id,
+        sku: item.sku || 'NL-' + item.id.slice(-6).toUpperCase(),
+        materialName: item.name,
+        unit: item.unit || 'Gram',
+        balanceStart,
+        balanceEnd,
+        quantity: usedQty,
+        price,
+        amount,
+        note: `Đầu: ${balanceStart.toFixed(1)} | Cuối: ${balanceEnd.toFixed(1)}`,
+      };
+    }).filter((m: any) => m.quantity > 0)
+      .sort((a: any, b: any) => b.quantity - a.quantity);
   }, [movements, items, startDate, endDate]);
 
   // KHUNG 4: Chênh lệch giữa calculated và actual
@@ -164,58 +189,150 @@ export default function Reports() {
     ]);
     const result: Array<{
       materialId: string;
+      sku: string;
       materialName: string;
-      calculated: number;
-      actual: number;
-      diff: number;
-      diffPercent: number;
       unit: string;
+      price: number;
+      calculatedQty: number;
+      calculatedAmount: number;
+      actualQty: number;
+      actualAmount: number;
+      diffQty: number;
+      diffAmount: number;
+      note: string;
     }> = [];
+
     for (const matId of allMaterialIds) {
       const calc = calculatedMaterials.find((m: any) => m.materialId === matId);
       const actual = actualExportedMaterials.find((m: any) => m.materialId === matId);
-      const calcQty = calc ? calc.quantity : 0;
+      const item = items.find((i: any) => i.id === matId);
+
+      const sku = item ? item.sku : (calc ? calc.sku : (actual ? actual.sku : ''));
+      const materialName = item ? item.name : (calc ? calc.materialName : (actual ? actual.materialName : ''));
+      const unit = item ? item.unit : (calc ? calc.unit : (actual ? actual.unit : ''));
+      const price = item ? parseFloat(item.price || '0') : (calc ? calc.price : (actual ? actual.price : 0));
+
+      const calculatedQty = calc ? calc.quantity : 0;
+      const calculatedAmount = calc ? calc.amount : 0;
+
       const actualQty = actual ? actual.quantity : 0;
-      const diff = actualQty - calcQty;
-      const diffPercent = calcQty > 0 ? ((diff / calcQty) * 100) : (actualQty > 0 ? 100 : 0);
+      const actualAmount = actual ? actual.amount : 0;
+
+      const diffQty = calculatedQty - actualQty;
+      const diffAmount = calculatedAmount - actualAmount;
+
+      let note = '';
+      if (diffQty > 0) {
+        note = 'Thừa nguyên liệu';
+      } else if (diffQty < 0) {
+        note = 'Hao hụt nguyên liệu';
+      } else {
+        note = 'Khớp';
+      }
+
       result.push({
         materialId: matId,
-        materialName: calc ? calc.materialName : (actual ? actual.materialName : ''),
-        calculated: calcQty,
-        actual: actualQty,
-        diff,
-        diffPercent,
-        unit: calc ? calc.unit : (actual ? actual.unit : ''),
+        sku,
+        materialName,
+        unit,
+        price,
+        calculatedQty,
+        calculatedAmount,
+        actualQty,
+        actualAmount,
+        diffQty,
+        diffAmount,
+        note,
       });
     }
-    return result.sort((a: any, b: any) => Math.abs(b.diff) - Math.abs(a.diff));
-  }, [calculatedMaterials, actualExportedMaterials]);
+    return result.sort((a: any, b: any) => Math.abs(b.diffQty) - Math.abs(a.diffQty));
+  }, [calculatedMaterials, actualExportedMaterials, items]);
 
   const exportReport = () => {
-
-    const rows = [
-      ['BÁO CÁO TRUCKFLOW', '', '', ''],
-      [`Ngày: ${formatDate(Date.now())}`, '', '', ''],
-      ['', '', '', ''],
-      ['DOANH THU', '', '', ''],
-      ['Tổng đơn hàng:', totalOrders.toString(), '', ''],
-      ['Tổng doanh thu:', formatCurrency(totalRevenue), '', ''],
-      ['Trung bình/đơn:', formatCurrency(avgOrderValue), '', ''],
-      ['', '', '', ''],
-      ['TOP SẢN PHẨM', '', '', ''],
-      ['Sản phẩm', 'SL', 'Doanh thu', ''],
-      ...topProducts.map((p: any) => [p.name, p.qty.toString(), formatCurrency(p.revenue), '']),
-      ['', '', '', ''],
-      ['TỒN KHO', '', '', ''],
-      ['Tổng giá trị tồn:', formatCurrency(inventoryValue), '', ''],
-      ['Số mặt hàng tồn thấp:', lowStockItems.length.toString(), '', ''],
-    ];
+    let rows: string[][] = [];
+    if (activeTab === 'materials') {
+      rows = [
+        ['BÁO CÁO NGUYÊN LIỆU CHI TIẾT', '', '', '', '', '', '', '', '', '', ''],
+        [`Thời gian: ${formatDate(new Date(startDate).getTime())} -> ${formatDate(new Date(endDate).getTime())}`, '', '', '', '', '', '', '', '', '', ''],
+        ['', '', '', '', '', '', '', '', '', '', ''],
+        ['1. HÀNG ĐÃ BÁN', '', '', '', '', '', '', '', '', '', ''],
+        ['Ngày bán', 'Mã sản phẩm', 'Tên sản phẩm', 'Đơn vị tính', 'Số lượng', 'Đơn giá', 'Tổng tiền', 'Ghi chú', '', '', ''],
+        ...soldProducts.map((p: any) => [
+          formatDateTime(p.date),
+          p.sku,
+          p.name,
+          p.unit,
+          p.qty.toString(),
+          p.price.toString(),
+          p.revenue.toString(),
+          p.note
+        ]),
+        ['', '', '', '', '', '', '', '', '', '', ''],
+        ['2. TỔNG NGUYÊN LIỆU HỆ THỐNG (ĐỊNH MỨC BOM)', '', '', '', '', '', '', '', '', '', ''],
+        ['Mã nguyên liệu', 'Tên nguyên liệu', 'Đơn vị tính', 'Số lượng', 'Đơn giá', 'Thành tiền', 'Ghi chú', '', '', '', ''],
+        ...calculatedMaterials.map((m: any) => [
+          m.sku,
+          m.materialName,
+          m.unit,
+          m.quantity.toString(),
+          m.price.toString(),
+          m.amount.toString(),
+          m.note
+        ]),
+        ['', '', '', '', '', '', '', '', '', '', ''],
+        ['3. TỔNG NGUYÊN LIỆU ĐÃ XUẤT THỰC TẾ (KIỂM KÊ)', '', '', '', '', '', '', '', '', '', ''],
+        ['Mã nguyên liệu', 'Tên nguyên liệu', 'Đơn vị tính', 'Số lượng dùng', 'Đơn giá', 'Thành tiền', 'Ghi chú', '', '', '', ''],
+        ...actualExportedMaterials.map((m: any) => [
+          m.sku,
+          m.materialName,
+          m.unit,
+          m.quantity.toString(),
+          m.price.toString(),
+          m.amount.toString(),
+          m.note
+        ]),
+        ['', '', '', '', '', '', '', '', '', '', ''],
+        ['4. BẢNG CHÊNH LỆCH NGUYÊN LIỆU', '', '', '', '', '', '', '', '', '', ''],
+        ['Mã', 'Tên nguyên liệu', 'Đơn vị tính', 'Đơn giá', 'SL Hệ thống', 'TT Hệ thống', 'SL Thực tế', 'TT Thực tế', 'Chênh lệch', 'TT Chênh lệch', 'Ghi chú'],
+        ...materialDiscrepancies.map((d: any) => [
+          d.sku,
+          d.materialName,
+          d.unit,
+          d.price.toString(),
+          d.calculatedQty.toString(),
+          d.calculatedAmount.toString(),
+          d.actualQty.toString(),
+          d.actualAmount.toString(),
+          d.diffQty.toString(),
+          d.diffAmount.toString(),
+          d.note
+        ])
+      ];
+    } else {
+      rows = [
+        ['BÁO CÁO TRUCKFLOW', '', '', ''],
+        [`Ngày: ${formatDate(Date.now())}`, '', '', ''],
+        ['', '', '', ''],
+        ['DOANH THU', '', '', ''],
+        ['Tổng đơn hàng:', totalOrders.toString(), '', ''],
+        ['Tổng doanh thu:', formatCurrency(totalRevenue), '', ''],
+        ['Trung bình/đơn:', formatCurrency(avgOrderValue), '', ''],
+        ['', '', '', ''],
+        ['TOP SẢN PHẨM', '', '', ''],
+        ['Sản phẩm', 'SL', 'Doanh thu', ''],
+        ...topProducts.map((p: any) => [p.name, p.qty.toString(), formatCurrency(p.revenue), '']),
+        ['', '', '', ''],
+        ['TỒN KHO', '', '', ''],
+        ['Tổng giá trị tồn:', formatCurrency(inventoryValue), '', ''],
+        ['Số mặt hàng tồn thấp:', lowStockItems.length.toString(), '', ''],
+      ];
+    }
     const csv = rows.map(r => r.join(',')).join('\n');
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const blob = new Blob([new Uint8Array([0xEF, 0xBB, 0xBF]), csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `baocao_${formatDate(Date.now()).replace(/\//g, '-')}.csv`;
+    a.download = `baocao_${activeTab}_${formatDate(Date.now()).replace(/\//g, '-')}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -352,141 +469,179 @@ export default function Reports() {
       )}
 
       {activeTab === 'materials' && (
-        <div className="grid grid-cols-2 gap-6">
-          {/* KHUNG 1: Góc trái trên - Danh sách hàng đã bán */}
+        <div className="space-y-6">
+          {/* KHUNG 1: Hàng đã bán */}
           <div className="bg-white rounded-xl p-5 shadow-sm border border-surface-zen">
             <div className="flex items-center space-x-2 mb-4">
               <ShoppingCart size={18} className="text-primary" />
-              <h3 className="font-bold text-primary-dark">Hàng đã bán</h3>
+              <h3 className="font-bold text-primary-dark">1. Hàng đã bán</h3>
               <span className="text-xs text-text-secondary ml-auto">{soldProducts.length} mặt hàng</span>
             </div>
             <div className="overflow-x-auto max-h-80 overflow-y-auto">
               <table className="w-full text-sm">
                 <thead className="bg-surface-zen text-text-secondary text-xs uppercase tracking-wider">
                   <tr>
-                    <th className="text-left p-2 font-medium">Sản phẩm</th>
-                    <th className="text-right p-2 font-medium">SL</th>
-                    <th className="text-right p-2 font-medium">Doanh thu</th>
+                    <th className="text-left p-2 font-medium whitespace-nowrap">Ngày bán</th>
+                    <th className="text-left p-2 font-medium whitespace-nowrap">Mã</th>
+                    <th className="text-left p-2 font-medium whitespace-nowrap">Tên</th>
+                    <th className="text-center p-2 font-medium whitespace-nowrap">ĐVT</th>
+                    <th className="text-right p-2 font-medium whitespace-nowrap">Số lượng</th>
+                    <th className="text-right p-2 font-medium whitespace-nowrap">Đơn giá</th>
+                    <th className="text-right p-2 font-medium whitespace-nowrap">Tổng tiền</th>
+                    <th className="text-left p-2 font-medium whitespace-nowrap">Ghi chú</th>
                   </tr>
                 </thead>
                 <tbody>
                   {soldProducts.map((p: any) => (
                     <tr key={p.id} className="border-t border-surface-zen hover:bg-surface-zen/30">
-                      <td className="p-2 font-medium">{p.name}</td>
-                      <td className="p-2 text-right font-bold">{p.qty}</td>
-                      <td className="p-2 text-right text-accent">{formatCurrency(p.revenue)}</td>
+                      <td className="p-2 text-xs whitespace-nowrap">{formatDateTime(p.date)}</td>
+                      <td className="p-2 text-xs font-mono whitespace-nowrap">{p.sku}</td>
+                      <td className="p-2 font-medium whitespace-nowrap">{p.name}</td>
+                      <td className="p-2 text-center text-text-secondary whitespace-nowrap">{p.unit}</td>
+                      <td className="p-2 text-right font-bold whitespace-nowrap">{p.qty}</td>
+                      <td className="p-2 text-right whitespace-nowrap">{formatCurrency(p.price)}</td>
+                      <td className="p-2 text-right text-accent font-bold whitespace-nowrap">{formatCurrency(p.revenue)}</td>
+                      <td className="p-2 text-text-secondary text-xs max-w-[120px] truncate whitespace-nowrap">{p.note}</td>
                     </tr>
                   ))}
                   {soldProducts.length === 0 && (
-                    <tr><td colSpan={3} className="text-center py-8 text-gray-400">Chưa có dữ liệu</td></tr>
+                    <tr><td colSpan={8} className="text-center py-8 text-gray-400">Chưa có dữ liệu</td></tr>
                   )}
                 </tbody>
               </table>
             </div>
           </div>
 
-          {/* KHUNG 2: Góc phải trên - Nguyên liệu tương ứng (tính từ BOM) */}
+          {/* KHUNG 2: Nguyên liệu (tổng từng nguyên liệu tính dựa trên số lượng hàng đã bán) */}
           <div className="bg-white rounded-xl p-5 shadow-sm border border-surface-zen">
             <div className="flex items-center space-x-2 mb-4">
               <ClipboardList size={18} className="text-primary" />
-              <h3 className="font-bold text-primary-dark">Nguyên liệu (Hệ thống)</h3>
+              <h3 className="font-bold text-primary-dark">2. Nguyên liệu</h3>
               <span className="text-xs text-text-secondary ml-auto">{calculatedMaterials.length} loại</span>
             </div>
             <div className="overflow-x-auto max-h-80 overflow-y-auto">
               <table className="w-full text-sm">
                 <thead className="bg-surface-zen text-text-secondary text-xs uppercase tracking-wider">
                   <tr>
-                    <th className="text-left p-2 font-medium">Nguyên liệu</th>
-                    <th className="text-right p-2 font-medium">SL cần</th>
-                    <th className="text-right p-2 font-medium">ĐVT</th>
+                    <th className="text-left p-2 font-medium whitespace-nowrap">Mã</th>
+                    <th className="text-left p-2 font-medium whitespace-nowrap">Tên</th>
+                    <th className="text-center p-2 font-medium whitespace-nowrap">ĐVT</th>
+                    <th className="text-right p-2 font-medium whitespace-nowrap">Số lượng</th>
+                    <th className="text-right p-2 font-medium whitespace-nowrap">Đơn giá</th>
+                    <th className="text-right p-2 font-medium whitespace-nowrap">Thành tiền</th>
+                    <th className="text-left p-2 font-medium whitespace-nowrap">Ghi chú</th>
                   </tr>
                 </thead>
                 <tbody>
                   {calculatedMaterials.map((m: any) => (
                     <tr key={m.materialId} className="border-t border-surface-zen hover:bg-surface-zen/30">
-                      <td className="p-2 font-medium">{m.materialName}</td>
-                      <td className="p-2 text-right font-bold text-primary">{m.quantity.toFixed(2)}</td>
-                      <td className="p-2 text-right text-text-secondary">{m.unit}</td>
+                      <td className="p-2 text-xs font-mono whitespace-nowrap">{m.sku}</td>
+                      <td className="p-2 font-medium whitespace-nowrap">{m.materialName}</td>
+                      <td className="p-2 text-center text-text-secondary whitespace-nowrap">{m.unit}</td>
+                      <td className="p-2 text-right font-bold text-primary whitespace-nowrap">{m.quantity.toFixed(2)}</td>
+                      <td className="p-2 text-right whitespace-nowrap">{formatCurrency(m.price)}</td>
+                      <td className="p-2 text-right font-bold whitespace-nowrap">{formatCurrency(m.amount)}</td>
+                      <td className="p-2 text-text-secondary text-xs max-w-[120px] truncate whitespace-nowrap">{m.note}</td>
                     </tr>
                   ))}
                   {calculatedMaterials.length === 0 && (
-                    <tr><td colSpan={3} className="text-center py-8 text-gray-400">Chưa có dữ liệu</td></tr>
+                    <tr><td colSpan={7} className="text-center py-8 text-gray-400">Chưa có dữ liệu</td></tr>
                   )}
                 </tbody>
               </table>
             </div>
           </div>
 
-          {/* KHUNG 3: Góc trái dưới - Nguyên liệu đã xuất thực tế */}
+          {/* KHUNG 3: Nguyên liệu đã xuất (thực tế nhân viên kiểm kê sau khi kết ca) */}
           <div className="bg-white rounded-xl p-5 shadow-sm border border-surface-zen">
             <div className="flex items-center space-x-2 mb-4">
               <Beaker size={18} className="text-accent" />
-              <h3 className="font-bold text-primary-dark">Nguyên liệu đã xuất (Thực tế)</h3>
+              <h3 className="font-bold text-primary-dark">3. Nguyên liệu đã xuất</h3>
               <span className="text-xs text-text-secondary ml-auto">{actualExportedMaterials.length} loại</span>
             </div>
             <div className="overflow-x-auto max-h-80 overflow-y-auto">
               <table className="w-full text-sm">
                 <thead className="bg-surface-zen text-text-secondary text-xs uppercase tracking-wider">
                   <tr>
-                    <th className="text-left p-2 font-medium">Nguyên liệu</th>
-                    <th className="text-right p-2 font-medium">SL đã xuất</th>
-                    <th className="text-right p-2 font-medium">ĐVT</th>
+                    <th className="text-left p-2 font-medium whitespace-nowrap">Mã</th>
+                    <th className="text-left p-2 font-medium whitespace-nowrap">Tên</th>
+                    <th className="text-center p-2 font-medium whitespace-nowrap">ĐVT</th>
+                    <th className="text-right p-2 font-medium whitespace-nowrap">Số lượng dùng</th>
+                    <th className="text-right p-2 font-medium whitespace-nowrap">Đơn giá</th>
+                    <th className="text-right p-2 font-medium whitespace-nowrap">Thành tiền</th>
+                    <th className="text-left p-2 font-medium whitespace-nowrap">Ghi chú</th>
                   </tr>
                 </thead>
                 <tbody>
                   {actualExportedMaterials.map((m: any) => (
                     <tr key={m.materialId} className="border-t border-surface-zen hover:bg-surface-zen/30">
-                      <td className="p-2 font-medium">{m.materialName}</td>
-                      <td className="p-2 text-right font-bold text-accent">{m.quantity.toFixed(2)}</td>
-                      <td className="p-2 text-right text-text-secondary">{m.unit}</td>
+                      <td className="p-2 text-xs font-mono whitespace-nowrap">{m.sku}</td>
+                      <td className="p-2 font-medium whitespace-nowrap">{m.materialName}</td>
+                      <td className="p-2 text-center text-text-secondary whitespace-nowrap">{m.unit}</td>
+                      <td className="p-2 text-right font-bold text-accent whitespace-nowrap">{m.quantity.toFixed(2)}</td>
+                      <td className="p-2 text-right whitespace-nowrap">{formatCurrency(m.price)}</td>
+                      <td className="p-2 text-right font-bold whitespace-nowrap">{formatCurrency(m.amount)}</td>
+                      <td className="p-2 text-text-secondary text-xs max-w-[120px] truncate whitespace-nowrap">{m.note}</td>
                     </tr>
                   ))}
                   {actualExportedMaterials.length === 0 && (
-                    <tr><td colSpan={3} className="text-center py-8 text-gray-400">Chưa có dữ liệu</td></tr>
+                    <tr><td colSpan={7} className="text-center py-8 text-gray-400">Chưa có dữ liệu</td></tr>
                   )}
                 </tbody>
               </table>
             </div>
           </div>
 
-          {/* KHUNG 4: Góc phải dưới - Chênh lệch */}
+          {/* KHUNG 4: Chênh lệch (nguyên liệu - nguyên liệu đã xuất) */}
           <div className="bg-white rounded-xl p-5 shadow-sm border border-surface-zen">
             <div className="flex items-center space-x-2 mb-4">
               <ArrowUpDown size={18} className="text-error-zen" />
-              <h3 className="font-bold text-primary-dark">Chênh lệch</h3>
+              <h3 className="font-bold text-primary-dark">4. Chênh lệch</h3>
               <span className="text-xs text-text-secondary ml-auto">{materialDiscrepancies.length} loại</span>
             </div>
             <div className="overflow-x-auto max-h-80 overflow-y-auto">
               <table className="w-full text-sm">
                 <thead className="bg-surface-zen text-text-secondary text-xs uppercase tracking-wider">
                   <tr>
-                    <th className="text-left p-2 font-medium">Nguyên liệu</th>
-                    <th className="text-right p-2 font-medium">HT tính</th>
-                    <th className="text-right p-2 font-medium">Thực tế</th>
-                    <th className="text-right p-2 font-medium">Chênh lệch</th>
-                    <th className="text-right p-2 font-medium">%</th>
+                    <th className="text-left p-2 font-medium whitespace-nowrap">Mã</th>
+                    <th className="text-left p-2 font-medium whitespace-nowrap">Tên</th>
+                    <th className="text-center p-2 font-medium whitespace-nowrap">ĐVT</th>
+                    <th className="text-right p-2 font-medium whitespace-nowrap">Đơn giá</th>
+                    <th className="text-right p-2 font-medium whitespace-nowrap">Số lượng</th>
+                    <th className="text-right p-2 font-medium whitespace-nowrap">Thành tiền</th>
+                    <th className="text-right p-2 font-medium whitespace-nowrap">SL đúng</th>
+                    <th className="text-right p-2 font-medium whitespace-nowrap">TT đúng</th>
+                    <th className="text-right p-2 font-medium whitespace-nowrap">Chênh lệch</th>
+                    <th className="text-right p-2 font-medium whitespace-nowrap">TT chênh lệch</th>
+                    <th className="text-left p-2 font-medium whitespace-nowrap">Ghi chú</th>
                   </tr>
                 </thead>
                 <tbody>
                   {materialDiscrepancies.map((d: any) => {
-                    const isOver = d.diff > 0;
-                    const isUnder = d.diff < 0;
+                    const isOver = d.diffQty > 0;
+                    const isUnder = d.diffQty < 0;
                     return (
                       <tr key={d.materialId} className="border-t border-surface-zen hover:bg-surface-zen/30">
-                        <td className="p-2 font-medium">{d.materialName}</td>
-                        <td className="p-2 text-right">{d.calculated.toFixed(2)}</td>
-                        <td className="p-2 text-right">{d.actual.toFixed(2)}</td>
-                        <td className={`p-2 text-right font-bold ${isOver ? 'text-error-zen' : isUnder ? 'text-success-zen' : ''}`}>
-                          {d.diff > 0 ? '+' : ''}{d.diff.toFixed(2)} {d.unit}
+                        <td className="p-2 text-xs font-mono whitespace-nowrap">{d.sku}</td>
+                        <td className="p-2 font-medium whitespace-nowrap">{d.materialName}</td>
+                        <td className="p-2 text-center text-text-secondary whitespace-nowrap">{d.unit}</td>
+                        <td className="p-2 text-right whitespace-nowrap">{formatCurrency(d.price)}</td>
+                        <td className="p-2 text-right whitespace-nowrap">{d.calculatedQty.toFixed(2)}</td>
+                        <td className="p-2 text-right whitespace-nowrap">{formatCurrency(d.calculatedAmount)}</td>
+                        <td className="p-2 text-right whitespace-nowrap">{d.actualQty.toFixed(2)}</td>
+                        <td className="p-2 text-right whitespace-nowrap">{formatCurrency(d.actualAmount)}</td>
+                        <td className={`p-2 text-right font-bold whitespace-nowrap ${isOver ? 'text-error-zen' : isUnder ? 'text-success-zen' : ''}`}>
+                          {d.diffQty > 0 ? '+' : ''}{d.diffQty.toFixed(2)}
                         </td>
-                        <td className={`p-2 text-right font-bold ${isOver ? 'text-error-zen' : isUnder ? 'text-success-zen' : ''}`}>
-                          {d.diffPercent > 0 ? '+' : ''}{d.diffPercent.toFixed(1)}%
+                        <td className={`p-2 text-right font-bold whitespace-nowrap ${isOver ? 'text-error-zen' : isUnder ? 'text-success-zen' : ''}`}>
+                          {d.diffAmount > 0 ? '+' : ''}{formatCurrency(d.diffAmount)}
                         </td>
+                        <td className="p-2 text-text-secondary text-xs max-w-[120px] truncate whitespace-nowrap">{d.note}</td>
                       </tr>
                     );
                   })}
                   {materialDiscrepancies.length === 0 && (
-                    <tr><td colSpan={5} className="text-center py-8 text-gray-400">Chưa có dữ liệu</td></tr>
+                    <tr><td colSpan={11} className="text-center py-8 text-gray-400">Chưa có dữ liệu</td></tr>
                   )}
                 </tbody>
               </table>
