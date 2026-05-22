@@ -1,16 +1,15 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { motion } from 'motion/react';
+import { motion, AnimatePresence } from 'motion/react';
 import {
   ShoppingCart, Plus, Minus, Trash2, Send, Utensils,
   User, Phone, Table, CheckCircle, Clock, AlertCircle,
-  ChevronLeft, Search,
+  Search, ChevronUp, ChevronDown,
 } from 'lucide-react';
 import { database } from '../database/index.js';
 import MenuItem from '../database/models/MenuItem.js';
 import { formatCurrency, generateId } from '../shared/utils.js';
 import { createCustomerOrder } from '../database/customerOrderApi.js';
 
-// Get table number from URL params
 function getTableFromUrl(): string {
   const params = new URLSearchParams(window.location.search);
   return params.get('table') || '1';
@@ -21,14 +20,13 @@ export default function CustomerOrder() {
   const [cart, setCart] = useState<any[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
+  const [showCart, setShowCart] = useState(false);
 
-  // Customer info
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
   const [note, setNote] = useState('');
   const [showInfoForm, setShowInfoForm] = useState(true);
 
-  // Order state
   const [submitting, setSubmitting] = useState(false);
   const [orderSuccess, setOrderSuccess] = useState(false);
   const [orderError, setOrderError] = useState('');
@@ -40,7 +38,6 @@ export default function CustomerOrder() {
     return () => sub.unsubscribe();
   }, []);
 
-  // Only show active menu items
   const activeMenuItems = useMemo(() => menuItems.filter((i: any) => i.isActive !== false), [menuItems]);
 
   const categories = useMemo(() => {
@@ -81,16 +78,11 @@ export default function CustomerOrder() {
   };
 
   const subtotal = useMemo(() => cart.reduce((acc: number, curr: any) => acc + (curr.price * curr.qty), 0), [cart]);
+  const totalItems = useMemo(() => cart.reduce((sum: number, c: any) => sum + c.qty, 0), [cart]);
 
   const handleSubmitOrder = async () => {
-    if (!customerName.trim()) {
-      setOrderError('Vui lòng nhập tên của bạn');
-      return;
-    }
-    if (cart.length === 0) {
-      setOrderError('Vui lòng chọn món');
-      return;
-    }
+    if (!customerName.trim()) { setOrderError('Vui lòng nhập tên của bạn'); return; }
+    if (cart.length === 0) { setOrderError('Vui lòng chọn món'); return; }
 
     setSubmitting(true);
     setOrderError('');
@@ -114,6 +106,7 @@ export default function CustomerOrder() {
       if (result.success) {
         setOrderSuccess(true);
         setCart([]);
+        setShowCart(false);
       } else {
         setOrderError(result.message || 'Có lỗi xảy ra, vui lòng thử lại');
       }
@@ -124,45 +117,26 @@ export default function CustomerOrder() {
     }
   };
 
-  // If order was submitted successfully, show success screen
+  // ── Success Screen ──────────────────────────────────────────
   if (orderSuccess) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-primary/5 to-background flex items-center justify-center p-4">
+      <div style={{ minHeight: '100vh', background: 'linear-gradient(160deg, var(--color-primary, #f97316) 0%, #fff7ed 40%)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
         <motion.div
-          initial={{ opacity: 0, scale: 0.9 }}
+          initial={{ opacity: 0, scale: 0.88 }}
           animate={{ opacity: 1, scale: 1 }}
-          className="bg-white rounded-3xl p-8 max-w-md w-full text-center shadow-2xl"
+          style={{ background: '#fff', borderRadius: '24px', padding: '36px 28px', maxWidth: '400px', width: '100%', textAlign: 'center', boxShadow: '0 20px 60px rgba(0,0,0,0.12)' }}
         >
-          <div className="w-20 h-20 bg-success-zen/10 rounded-full flex items-center justify-center mx-auto mb-4">
-            <CheckCircle size={48} className="text-success-zen" />
+          <div style={{ width: '72px', height: '72px', borderRadius: '50%', background: '#dcfce7', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
+            <CheckCircle size={40} color="#16a34a" />
           </div>
-          <h2 className="text-2xl font-bold text-primary-dark mb-2">Đặt món thành công!</h2>
-          <p className="text-text-secondary mb-4">
-            Cảm ơn {customerName} đã đặt món tại <strong>Bàn {tableNumber}</strong>
+          <h2 style={{ fontSize: '22px', fontWeight: 700, color: '#1e293b', marginBottom: '6px' }}>Đặt món thành công!</h2>
+          <p style={{ color: '#64748b', fontSize: '14px', marginBottom: '20px' }}>
+            Cảm ơn <strong>{customerName}</strong> đã đặt món tại <strong>Bàn {tableNumber}</strong>
           </p>
-          <div className="bg-surface-zen rounded-xl p-4 mb-6 text-left space-y-2">
-            <p className="text-sm font-medium text-text-secondary">Món đã gọi:</p>
-            {cart.map((item: any, i: number) => (
-              <div key={i} className="flex justify-between text-sm">
-                <span>{item.productName} x{item.qty}</span>
-                <span className="font-medium">{formatCurrency(item.price * item.qty)}</span>
-              </div>
-            ))}
-            <div className="border-t pt-2 flex justify-between font-bold">
-              <span>Tạm tính</span>
-              <span className="text-accent">{formatCurrency(subtotal)}</span>
-            </div>
-          </div>
-          <p className="text-sm text-text-secondary">
-            Nhân viên sẽ đến xác nhận đơn ngay. Vui lòng chờ trong giây lát!
-          </p>
+          <p style={{ fontSize: '13px', color: '#94a3b8', marginBottom: '24px' }}>Nhân viên sẽ đến xác nhận đơn ngay. Vui lòng chờ trong giây lát!</p>
           <button
-            onClick={() => {
-              setOrderSuccess(false);
-              setShowInfoForm(true);
-              setCart([]);
-            }}
-            className="mt-6 w-full py-3 bg-primary text-white rounded-xl font-medium hover:bg-primary-dark transition-all"
+            onClick={() => { setOrderSuccess(false); setShowInfoForm(true); setCart([]); }}
+            style={{ width: '100%', padding: '14px', background: '#f97316', color: '#fff', border: 'none', borderRadius: '14px', fontWeight: 700, fontSize: '15px', cursor: 'pointer' }}
           >
             Đặt món mới
           </button>
@@ -171,62 +145,62 @@ export default function CustomerOrder() {
     );
   }
 
-  // Customer info form
+  // ── Info Form ────────────────────────────────────────────────
   if (showInfoForm) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-primary/5 to-background flex items-center justify-center p-4">
+      <div style={{ minHeight: '100vh', background: 'linear-gradient(160deg, #fff7ed 0%, #fff 60%)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
+          initial={{ opacity: 0, y: 24 }}
           animate={{ opacity: 1, y: 0 }}
-          className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl"
+          style={{ background: '#fff', borderRadius: '24px', padding: '36px 28px', maxWidth: '400px', width: '100%', boxShadow: '0 20px 60px rgba(0,0,0,0.1)' }}
         >
-          <div className="text-center mb-6">
-            <div className="w-16 h-16 bg-accent/10 rounded-full flex items-center justify-center mx-auto mb-3">
-              <Utensils size={32} className="text-accent" />
+          <div style={{ textAlign: 'center', marginBottom: '28px' }}>
+            <div style={{ width: '64px', height: '64px', background: '#fff7ed', borderRadius: '18px', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 14px' }}>
+              <Utensils size={30} color="#f97316" />
             </div>
-            <h1 className="text-2xl font-bold text-primary-dark">Chào mừng đến với</h1>
-            <p className="text-lg font-semibold text-accent">TruckFlow</p>
-            <div className="mt-2 inline-flex items-center space-x-1 bg-primary/5 text-primary px-3 py-1 rounded-full text-sm">
-              <Table size={14} />
-              <span>Bàn {tableNumber}</span>
-            </div>
+            <h1 style={{ fontSize: '22px', fontWeight: 700, color: '#1e293b', marginBottom: '4px' }}>Chào mừng đến với</h1>
+            <p style={{ fontSize: '18px', fontWeight: 700, color: '#f97316', marginBottom: '10px' }}>TruckFlow</p>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', background: '#fff7ed', color: '#f97316', padding: '4px 12px', borderRadius: '20px', fontSize: '13px', fontWeight: 600 }}>
+              <Table size={13} /> Bàn {tableNumber}
+            </span>
           </div>
 
-          <div className="space-y-4">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
             <div>
-              <label className="text-sm text-text-secondary font-medium block mb-1">
-                <User size={14} className="inline mr-1" />Tên của bạn *
+              <label style={{ fontSize: '13px', color: '#64748b', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '5px', marginBottom: '6px' }}>
+                <User size={13} /> Tên của bạn *
               </label>
               <input
                 type="text"
                 value={customerName}
                 onChange={(e) => setCustomerName(e.target.value)}
                 placeholder="Nhập tên của bạn..."
-                className="w-full px-4 py-3 border border-surface-zen rounded-xl focus:ring-2 focus:ring-primary/30 outline-none"
                 autoFocus
+                style={{ width: '100%', padding: '12px 14px', border: '1.5px solid #e2e8f0', borderRadius: '12px', fontSize: '15px', outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit' }}
+                onFocus={(e) => e.target.style.borderColor = '#f97316'}
+                onBlur={(e) => e.target.style.borderColor = '#e2e8f0'}
               />
             </div>
             <div>
-              <label className="text-sm text-text-secondary font-medium block mb-1">
-                <Phone size={14} className="inline mr-1" />Số điện thoại
+              <label style={{ fontSize: '13px', color: '#64748b', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '5px', marginBottom: '6px' }}>
+                <Phone size={13} /> Số điện thoại
               </label>
               <input
                 type="tel"
                 value={customerPhone}
                 onChange={(e) => setCustomerPhone(e.target.value)}
-                placeholder="Nhập số điện thoại (không bắt buộc)..."
-                className="w-full px-4 py-3 border border-surface-zen rounded-xl focus:ring-2 focus:ring-primary/30 outline-none"
+                placeholder="Không bắt buộc..."
+                style={{ width: '100%', padding: '12px 14px', border: '1.5px solid #e2e8f0', borderRadius: '12px', fontSize: '15px', outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit' }}
+                onFocus={(e) => e.target.style.borderColor = '#f97316'}
+                onBlur={(e) => e.target.style.borderColor = '#e2e8f0'}
               />
             </div>
             <button
-              onClick={() => {
-                if (!customerName.trim()) return;
-                setShowInfoForm(false);
-              }}
+              onClick={() => { if (!customerName.trim()) return; setShowInfoForm(false); }}
               disabled={!customerName.trim()}
-              className="w-full py-4 bg-accent text-white rounded-xl font-bold text-lg shadow-lg hover:bg-primary-dark transition-all disabled:opacity-50"
+              style={{ width: '100%', padding: '15px', background: customerName.trim() ? '#f97316' : '#e2e8f0', color: customerName.trim() ? '#fff' : '#94a3b8', border: 'none', borderRadius: '14px', fontWeight: 700, fontSize: '16px', cursor: customerName.trim() ? 'pointer' : 'not-allowed', transition: 'all 0.2s' }}
             >
-              Bắt đầu gọi món
+              Bắt đầu gọi món →
             </button>
           </div>
         </motion.div>
@@ -234,181 +208,230 @@ export default function CustomerOrder() {
     );
   }
 
-  // Main ordering interface
+  // ── Main Ordering Interface ──────────────────────────────────
   return (
-    <div className="min-h-screen bg-background flex flex-col">
-      {/* Header */}
-      <div className="bg-white border-b border-surface-zen px-4 py-3 sticky top-0 z-10">
-        <div className="flex items-center justify-between max-w-4xl mx-auto">
-          <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 bg-accent rounded-xl flex items-center justify-center">
-              <Utensils size={20} className="text-white" />
+    <div style={{ minHeight: '100vh', background: '#f8f9fa', display: 'flex', flexDirection: 'column', maxWidth: '480px', margin: '0 auto', position: 'relative' }}>
+
+      {/* ── STICKY HEADER ── */}
+      <div style={{ position: 'sticky', top: 0, zIndex: 30, background: '#fff', borderBottom: '1px solid #f1f5f9' }}>
+
+        {/* Top bar */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 16px 8px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <div style={{ width: '36px', height: '36px', background: '#f97316', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <Utensils size={18} color="#fff" />
             </div>
             <div>
-              <h1 className="font-bold text-primary-dark">TruckFlow</h1>
-              <div className="flex items-center space-x-2 text-xs text-text-secondary">
+              <div style={{ fontWeight: 700, fontSize: '15px', color: '#1e293b', lineHeight: 1.2 }}>TruckFlow</div>
+              <div style={{ fontSize: '12px', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '4px' }}>
                 <span>{customerName}</span>
                 <span>•</span>
-                <span className="flex items-center"><Table size={10} className="mr-0.5" />Bàn {tableNumber}</span>
+                <span style={{ display: 'flex', alignItems: 'center', gap: '2px' }}><Table size={10} />Bàn {tableNumber}</span>
               </div>
             </div>
           </div>
           <button
             onClick={() => setShowInfoForm(true)}
-            className="text-xs text-primary hover:text-primary-dark"
+            style={{ fontSize: '12px', color: '#f97316', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600, padding: '4px 0' }}
           >
             Đổi thông tin
           </button>
         </div>
-      </div>
 
-      <div className="flex-1 max-w-4xl mx-auto w-full p-4 flex flex-col lg:flex-row gap-4">
-        {/* Menu Items */}
-        <div className="flex-1 flex flex-col space-y-4">
-          {/* Search */}
-          <div className="relative">
-            <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary" />
-            <input
-              type="text"
-              placeholder="Tìm món..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-3 bg-white border border-surface-zen rounded-xl focus:ring-2 focus:ring-primary/30 outline-none"
-            />
-          </div>
-
-          {/* Categories */}
-          <div className="flex space-x-2 overflow-x-auto pb-2">
-            {categories.map((cat: string) => (
-              <button
-                key={cat}
-                onClick={() => setSelectedCategory(cat)}
-                className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-all ${
-                  selectedCategory === cat
-                    ? 'bg-accent text-white shadow-sm'
-                    : 'bg-white border border-surface-zen text-text-secondary hover:border-accent/30'
-                }`}
-              >
-                {cat === 'all' ? 'Tất cả' : cat}
-              </button>
-            ))}
-          </div>
-
-          {/* Menu Grid */}
-          <div className="flex-1 overflow-y-auto">
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-              {filteredItems.map((item: any) => (
-                <motion.button
-                  whileTap={{ scale: 0.95 }}
-                  key={item.id}
-                  onClick={() => addToCart(item)}
-                  className="p-4 bg-white rounded-2xl shadow-sm border border-gray-200/50 flex flex-col items-center space-y-2 hover:shadow-md transition-all hover:border-accent/30"
-                >
-                  <div className="w-14 h-14 bg-accent/10 text-accent rounded-full flex items-center justify-center text-xl font-bold">
-                    <Utensils size={24} />
-                  </div>
-                  <span className="font-semibold text-text-main text-sm text-center line-clamp-2">{item.name}</span>
-                  <span className="text-sm font-bold text-accent">{formatCurrency(parseFloat(item.price || '0'))}</span>
-                  {item.defaultDiscount && parseFloat(item.defaultDiscount) > 0 && (
-                    <span className="text-xs text-success-zen">Giảm {item.defaultDiscount}%</span>
-                  )}
-                </motion.button>
-              ))}
-              {filteredItems.length === 0 && (
-                <div className="col-span-3 text-center py-12 text-gray-400">
-                  {searchTerm ? 'Không tìm thấy món' : 'Chưa có món nào trong menu'}
-                </div>
-              )}
-            </div>
-          </div>
+        {/* Search bar */}
+        <div style={{ padding: '0 16px 10px', position: 'relative' }}>
+          <Search size={16} style={{ position: 'absolute', left: '28px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
+          <input
+            type="text"
+            placeholder="Tìm món..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            style={{ width: '100%', padding: '10px 14px 10px 38px', background: '#f8f9fa', border: '1.5px solid #f1f5f9', borderRadius: '12px', fontSize: '14px', outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit', color: '#1e293b' }}
+          />
         </div>
 
-        {/* Cart */}
-        <div className="lg:w-80 bg-white rounded-2xl shadow-xl flex flex-col border border-surface-zen lg:sticky lg:top-20 lg:max-h-[calc(100vh-6rem)]">
-          <div className="p-4 pb-3 border-b border-surface-zen">
-            <div className="flex items-center space-x-2">
-              <ShoppingCart className="text-accent" size={20} />
-              <h2 className="text-lg font-bold text-primary-dark">Giỏ hàng</h2>
-              {cart.length > 0 && (
-                <span className="bg-accent text-white text-xs font-bold px-2 py-0.5 rounded-full ml-auto">
-                  {cart.reduce((sum: number, c: any) => sum + c.qty, 0)} món
-                </span>
-              )}
-            </div>
-          </div>
+        {/* Category chips */}
+        <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', padding: '0 16px 12px', scrollbarWidth: 'none' }}>
+          {categories.map((cat: string) => (
+            <button
+              key={cat}
+              onClick={() => setSelectedCategory(cat)}
+              style={{
+                padding: '6px 14px',
+                borderRadius: '20px',
+                fontSize: '13px',
+                fontWeight: 600,
+                whiteSpace: 'nowrap',
+                border: selectedCategory === cat ? 'none' : '1.5px solid #e2e8f0',
+                background: selectedCategory === cat ? '#f97316' : '#fff',
+                color: selectedCategory === cat ? '#fff' : '#64748b',
+                cursor: 'pointer',
+                transition: 'all 0.15s',
+                flexShrink: 0,
+              }}
+            >
+              {cat === 'all' ? 'Tất cả' : cat}
+            </button>
+          ))}
+        </div>
+      </div>
 
-          <div className="flex-1 overflow-y-auto p-3 space-y-2">
-            {cart.map((item: any) => (
-              <div key={item.menuItemId} className="bg-surface-zen rounded-xl p-3">
-                <div className="flex justify-between items-start mb-2">
-                  <p className="font-medium text-text-main text-sm flex-1">{item.productName}</p>
-                  <button onClick={() => removeFromCart(item.menuItemId)} className="text-error-zen/50 hover:text-error-zen p-1">
-                    <Trash2 size={14} />
-                  </button>
-                </div>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-1 bg-white rounded-lg border border-surface-zen">
-                    <button onClick={() => updateQty(item.menuItemId, -1)} className="p-1.5 hover:bg-surface-zen rounded-l-lg">
-                      <Minus size={14} />
-                    </button>
-                    <span className="px-3 font-bold text-text-main min-w-[24px] text-center text-sm">{item.qty}</span>
-                    <button onClick={() => updateQty(item.menuItemId, 1)} className="p-1.5 hover:bg-surface-zen rounded-r-lg">
-                      <Plus size={14} />
-                    </button>
+      {/* ── MENU LIST ── */}
+      {/* Bottom padding for sticky bar */}
+      <div style={{ flex: 1, overflowY: 'auto', padding: '8px 16px', paddingBottom: cart.length > 0 ? '88px' : '16px' }}>
+        {filteredItems.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '48px 0', color: '#94a3b8' }}>
+            <Utensils size={40} style={{ margin: '0 auto 12px', opacity: 0.3 }} />
+            <p style={{ fontSize: '14px' }}>{searchTerm ? 'Không tìm thấy món' : 'Chưa có món nào trong menu'}</p>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {filteredItems.map((item: any) => {
+              const cartItem = cart.find((c: any) => c.menuItemId === item.id);
+              const qty = cartItem?.qty || 0;
+              return (
+                <motion.div
+                  key={item.id}
+                  layout
+                  initial={{ opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  style={{ background: '#fff', borderRadius: '14px', padding: '10px 12px', display: 'flex', alignItems: 'center', gap: '12px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)', border: qty > 0 ? '1.5px solid #f97316' : '1.5px solid transparent' }}
+                >
+                  {/* Thumbnail */}
+                  <div style={{ width: '52px', height: '52px', background: '#fff7ed', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <Utensils size={22} color="#f97316" />
                   </div>
-                  <span className="font-bold text-accent text-sm">{formatCurrency(item.price * item.qty)}</span>
-                </div>
-              </div>
-            ))}
-            {cart.length === 0 && (
-              <div className="text-center py-8 text-text-secondary/50">
-                <ShoppingCart size={36} className="mx-auto mb-2 opacity-30" />
-                <p className="text-sm">Giỏ hàng trống</p>
-                <p className="text-xs mt-1">Chọn món từ menu</p>
-              </div>
-            )}
+
+                  {/* Name & Price */}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <p style={{ fontWeight: 600, fontSize: '14px', color: '#1e293b', marginBottom: '3px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.name}</p>
+                    <p style={{ fontSize: '14px', fontWeight: 700, color: '#f97316' }}>{formatCurrency(parseFloat(item.price || '0'))}</p>
+                  </div>
+
+                  {/* Qty control */}
+                  {qty > 0 ? (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+                      <button
+                        onClick={() => updateQty(item.id, -1)}
+                        style={{ width: '28px', height: '28px', borderRadius: '8px', border: '1.5px solid #e2e8f0', background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
+                      >
+                        <Minus size={13} color="#64748b" />
+                      </button>
+                      <span style={{ minWidth: '20px', textAlign: 'center', fontWeight: 700, fontSize: '14px', color: '#1e293b' }}>{qty}</span>
+                      <button
+                        onClick={() => addToCart(item)}
+                        style={{ width: '28px', height: '28px', borderRadius: '8px', border: 'none', background: '#f97316', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
+                      >
+                        <Plus size={13} color="#fff" />
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => addToCart(item)}
+                      style={{ width: '36px', height: '36px', borderRadius: '10px', border: 'none', background: '#f97316', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0, boxShadow: '0 2px 8px rgba(249,115,22,0.3)' }}
+                    >
+                      <Plus size={18} color="#fff" />
+                    </button>
+                  )}
+                </motion.div>
+              );
+            })}
           </div>
+        )}
+      </div>
 
-          {/* Note */}
-          <div className="px-3 pb-2">
-            <input
-              type="text"
-              placeholder="Ghi chú cho món..."
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-              className="w-full px-3 py-2 text-sm border border-surface-zen rounded-xl outline-none"
-            />
-          </div>
+      {/* ── STICKY BOTTOM BAR ── */}
+      <AnimatePresence>
+        {cart.length > 0 && (
+          <motion.div
+            initial={{ y: 100, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: 100, opacity: 0 }}
+            transition={{ type: 'spring', damping: 20, stiffness: 260 }}
+            style={{ position: 'fixed', bottom: 0, left: '50%', transform: 'translateX(-50%)', width: '100%', maxWidth: '480px', zIndex: 40, background: '#fff', borderTop: '1px solid #f1f5f9', boxShadow: '0 -4px 20px rgba(0,0,0,0.1)' }}
+          >
+            {/* Cart drawer */}
+            <AnimatePresence>
+              {showCart && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: 'auto', opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  style={{ overflow: 'hidden' }}
+                >
+                  <div style={{ padding: '12px 16px 8px', maxHeight: '240px', overflowY: 'auto' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '8px' }}>
+                      {cart.map((item: any) => (
+                        <div key={item.menuItemId} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 10px', background: '#f8f9fa', borderRadius: '10px' }}>
+                          <span style={{ flex: 1, fontSize: '13px', fontWeight: 600, color: '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.productName}</span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+                            <button onClick={() => updateQty(item.menuItemId, -1)} style={{ width: '24px', height: '24px', borderRadius: '6px', border: '1px solid #e2e8f0', background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+                              <Minus size={11} color="#64748b" />
+                            </button>
+                            <span style={{ minWidth: '18px', textAlign: 'center', fontWeight: 700, fontSize: '13px' }}>{item.qty}</span>
+                            <button onClick={() => updateQty(item.menuItemId, 1)} style={{ width: '24px', height: '24px', borderRadius: '6px', border: 'none', background: '#f97316', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+                              <Plus size={11} color="#fff" />
+                            </button>
+                          </div>
+                          <span style={{ fontSize: '13px', fontWeight: 700, color: '#f97316', minWidth: '70px', textAlign: 'right' }}>{formatCurrency(item.price * item.qty)}</span>
+                          <button onClick={() => removeFromCart(item.menuItemId)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px', color: '#cbd5e1' }}>
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                    {/* Note */}
+                    <input
+                      type="text"
+                      placeholder="Ghi chú cho món..."
+                      value={note}
+                      onChange={(e) => setNote(e.target.value)}
+                      style={{ width: '100%', padding: '9px 12px', border: '1.5px solid #e2e8f0', borderRadius: '10px', fontSize: '13px', outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit', color: '#1e293b' }}
+                    />
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
 
-          {/* Total & Submit */}
-          <div className="p-4 pt-3 border-t border-surface-zen space-y-3">
-            <div className="flex justify-between text-base font-bold">
-              <span>Tạm tính</span>
-              <span className="text-accent">{formatCurrency(subtotal)}</span>
-            </div>
-
+            {/* Error */}
             {orderError && (
-              <div className="flex items-center space-x-2 text-error-zen bg-error-zen/5 p-2 rounded-lg text-sm">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: '#fef2f2', color: '#dc2626', padding: '8px 16px', fontSize: '13px' }}>
                 <AlertCircle size={14} />
                 <span>{orderError}</span>
               </div>
             )}
 
-            <button
-              disabled={cart.length === 0 || submitting}
-              onClick={handleSubmitOrder}
-              className="w-full py-4 bg-accent text-white rounded-xl font-bold shadow-lg hover:bg-primary-dark active:scale-[0.98] transition-all disabled:opacity-50 flex items-center justify-center space-x-2"
-            >
-              {submitting ? (
-                <Clock size={20} className="animate-spin" />
-              ) : (
-                <Send size={20} />
-              )}
-              <span>{submitting ? 'Đang gửi...' : `GỬI ĐƠN - ${formatCurrency(subtotal)}`}</span>
-            </button>
-          </div>
-        </div>
-      </div>
+            {/* Bottom action row */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 16px 14px' }}>
+              {/* Summary pill (toggle cart) */}
+              <button
+                onClick={() => setShowCart(!showCart)}
+                style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '8px', background: '#fff7ed', border: '1.5px solid #fed7aa', borderRadius: '12px', padding: '9px 12px', cursor: 'pointer' }}
+              >
+                <div style={{ position: 'relative', flexShrink: 0 }}>
+                  <ShoppingCart size={18} color="#f97316" />
+                  <span style={{ position: 'absolute', top: '-6px', right: '-8px', background: '#f97316', color: '#fff', fontSize: '10px', fontWeight: 700, borderRadius: '50%', width: '16px', height: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{totalItems}</span>
+                </div>
+                <div style={{ flex: 1, textAlign: 'left' }}>
+                  <div style={{ fontSize: '11px', color: '#94a3b8', lineHeight: 1 }}>Đã chọn {totalItems} món</div>
+                  <div style={{ fontSize: '14px', fontWeight: 700, color: '#f97316', lineHeight: 1.4 }}>{formatCurrency(subtotal)}</div>
+                </div>
+                {showCart ? <ChevronDown size={14} color="#f97316" /> : <ChevronUp size={14} color="#f97316" />}
+              </button>
+
+              {/* Send button */}
+              <button
+                disabled={submitting}
+                onClick={handleSubmitOrder}
+                style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: '6px', padding: '11px 18px', background: '#f97316', color: '#fff', border: 'none', borderRadius: '12px', fontWeight: 700, fontSize: '14px', cursor: submitting ? 'not-allowed' : 'pointer', boxShadow: '0 4px 14px rgba(249,115,22,0.4)', opacity: submitting ? 0.7 : 1, whiteSpace: 'nowrap' }}
+              >
+                {submitting ? <Clock size={16} style={{ animation: 'spin 1s linear infinite' }} /> : <Send size={16} />}
+                {submitting ? 'Đang gửi...' : 'GỬI ĐƠN'}
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
