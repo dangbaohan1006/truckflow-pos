@@ -93,10 +93,34 @@ export default function CustomerOrder() {
 
   const tableNumber = getTableFromUrl();
 
-  // Load products from DB
+  // Load products from backend (since customer mobile device doesn't have direct access to cashier's local WatermelonDB)
   useEffect(() => {
-    const sub = database.get<MenuItem>('menu_items').query().observe().subscribe(setMenuItems);
-    return () => sub.unsubscribe();
+    let isMounted = true;
+    async function fetchMenu() {
+      try {
+        const response = await fetch('/api/customer-orders/menu');
+        if (!response.ok) throw new Error('Failed to fetch menu from backend');
+        const data = await response.json();
+        if (isMounted) {
+          setMenuItems(data);
+          // Cache menu items for offline fallback
+          localStorage.setItem('truckflow_customer_menu_cache', JSON.stringify(data));
+        }
+      } catch (err) {
+        console.error('Failed to load menu from backend, falling back to local cache...', err);
+        const cached = localStorage.getItem('truckflow_customer_menu_cache');
+        if (cached && isMounted) {
+          try {
+            setMenuItems(JSON.parse(cached));
+          } catch {}
+        }
+      }
+    }
+
+    fetchMenu();
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   // Premium fallback mock menu items if DB is empty

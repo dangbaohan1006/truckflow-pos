@@ -9,12 +9,27 @@ from pydantic import BaseModel
 
 from src.core.database import get_session
 from src.modules.auth.dependencies import get_current_user, get_optional_user, AuthUser
-from .models import CustomerOrder, CustomerOrderItem, OrderNotification
+from .models import CustomerOrder, CustomerOrderItem, OrderNotification, MenuItem
 
 router = APIRouter(prefix="/api/customer-orders", tags=["Customer Orders"])
 
 
 # ===== Pydantic Schemas =====
+
+class MenuItemSyncInput(BaseModel):
+    id: str
+    name: str
+    price: str
+    category: str
+    unit: Optional[str] = ""
+    default_discount: Optional[str] = "0"
+    is_active: Optional[bool] = True
+    image: Optional[str] = None
+
+
+class MenuItemSyncPayload(BaseModel):
+    menu_items: List[MenuItemSyncInput]
+
 
 class OrderItemInput(BaseModel):
     menu_item_id: str
@@ -518,3 +533,81 @@ async def mark_all_notifications_read(
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         session.close()
+
+
+# ===== Customer Menu Sync & Fetch =====
+
+@router.post("/menu/sync", response_model=dict)
+async def sync_menu_items(
+    payload: MenuItemSyncPayload,
+    current_user: AuthUser = Depends(get_current_user),
+):
+    """Đồng bộ thực đơn từ thiết bị Thu ngân lên backend (cần auth)"""
+    session = get_session()
+    try:
+        now = datetime.now(timezone.utc)
+        # Upsert sent menu items
+        for item in payload.menu_items:
+            existing = session.query(MenuItem).filter(MenuItem.id == item.id).first()
+            is_active_str = "true" if item.is_active else "false"
+            
+            if existing:
+                existing.name = item.name
+                existing.price = item.price
+                existing.category = item.category
+                existing.unit = item.unit or ""
+                existing.default_discount = item.default_discount or "0"
+                existing.is_active = is_active_str
+                existing.image = item.image
+                existing.updated_at = now
+            else:
+                new_item = MenuItem(
+                    id=item.id,
+                    name=item.name,
+                    price=item.price,
+                    category=item.category,
+                    unit=item.unit or "",
+                    default_discount=item.default_discount or "0",
+                    is_active=is_active_str,
+                    image=item.image,
+                    created_at=now,
+                    updated_at=now,
+                )
+                session.add(new_item)
+                
+        # Delete items no longer in sent list
+        sent_ids = [item.id for item in payload.menu_items]
+        if sent_ids:
+            session.query(MenuItem).filter(~MenuItem.id.in_(sent_ids)).delete(synchronize_session=False)
+            
+        session.commit()
+        return {"success": True, "message": f"Đồng bộ thành công {len(payload.menu_items)} món ăn!"}
+    except Exception as e:
+        session.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        session.close()
+
+
+@router.get("/menu", response_model=List[dict])
+async def get_customer_menu():
+    """Khách hàng lấy danh sách thực đơn hoạt động (không cần auth)"""
+    session = get_session()
+    try:
+        items = session.query(MenuItem).filter(MenuItem.is_active == "true").all()
+        return [
+            {
+                "id": item.id,
+                "name": item.name,
+                "price": item.price,
+                "category": item.category,
+                "unit": item.unit or "",
+                "defaultDiscount": item.default_discount or "0",
+                "image": item.image or "",
+                "isActive": True,
+            }
+            for item in items
+        ]
+    finally:
+        session.close()
+

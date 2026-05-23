@@ -40,3 +40,19 @@ class OrderNotification(Base):
     message = Column(Text, nullable=True, default="")
     is_read = Column(String, nullable=False, default="false")  # "true" / "false"
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class MenuItem(Base):
+    __tablename__ = "menu_items"
+
+    id = Column(String, primary_key=True)
+    name = Column(String, nullable=False)
+    price = Column(String, nullable=False)
+    category = Column(String, nullable=False)
+    unit = Column(String, nullable=True, default="")
+    default_discount = Column(String, nullable=True, default="0")
+    is_active = Column(String, nullable=False, default="true") # "true" / "false"
+    image = Column(Text, nullable=True) # Base64 image
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
