@@ -18,7 +18,7 @@ import User from './models/User.js';
 import MenuItem from './models/MenuItem.js';
 import MenuIngredient from './models/MenuIngredient.js';
 import migrations from './migrations.js';
-export { syncProvider as mySync } from './sync.js';
+export { syncProvider as mySync, publishMenuToBackend } from './sync.js';
 
 const adapter = new LokiJSAdapter({
   schema,

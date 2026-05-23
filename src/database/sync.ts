@@ -8,46 +8,7 @@ function buildAuthHeaders(): Record<string, string> {
   return token ? { 'X-Session-Token': token, Authorization: `Bearer ${token}` } : {};
 }
 
-export async function syncProvider() {
-  await synchronize({
-    database,
-    pullChanges: async ({ lastPulledAt }) => {
-      const url = buildUrl('/api/sales/sync', { lastPulledAt: String(lastPulledAt || 0) });
-      const response = await fetch(url, {
-        headers: buildAuthHeaders(),
-      });
-      if (!response.ok) {
-        throw new Error(await response.text());
-      }
-      const data = await response.json();
-      if (data && typeof data === 'object' && 'error' in data) {
-        throw new Error((data as any).error);
-      }
-      const { changes, timestamp } = data;
-      return { changes, timestamp };
-    },
-    pushChanges: async ({ changes, lastPulledAt }) => {
-      const url = buildUrl('/api/sales/sync');
-      const isGas = url.includes('script.google.com');
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': isGas ? 'text/plain;charset=utf-8' : 'application/json',
-          ...buildAuthHeaders(),
-        },
-        body: JSON.stringify({ changes, lastPulledAt }),
-      });
-      if (!response.ok) {
-        throw new Error(await response.text());
-      }
-      const data = await response.json();
-      if (data && typeof data === 'object' && 'error' in data) {
-        throw new Error((data as any).error);
-      }
-    },
-  });
-
-  // Automatically publish cashier's local menu items to the customer-facing backend
+export async function publishMenuToBackend() {
   try {
     const menuItems = await database.get<MenuItem>('menu_items').query().fetch();
     const payload = {
@@ -86,5 +47,71 @@ export async function syncProvider() {
   } catch (err) {
     console.error('Error synchronizing menu items with customer order backend:', err);
   }
+}
+
+export async function syncProvider() {
+  // Map local pos_order and pos_order_line to backend orders and order_lines schema
+  await synchronize({
+    database,
+    pullChanges: async ({ lastPulledAt }) => {
+      const url = buildUrl('/api/sales/sync', { lastPulledAt: String(lastPulledAt || 0) });
+      const response = await fetch(url, {
+        headers: buildAuthHeaders(),
+      });
+      if (!response.ok) {
+        throw new Error(await response.text());
+      }
+      const data = await response.json();
+      if (data && typeof data === 'object' && 'error' in data) {
+        throw new Error((data as any).error);
+      }
+      
+      const { changes, timestamp } = data;
+      
+      // Translate backend table names to local WatermelonDB schema
+      const mappedChanges = {
+        ...changes,
+        pos_order: changes.orders || { created: [], updated: [], deleted: [] },
+        pos_order_line: changes.order_lines || { created: [], updated: [], deleted: [] },
+      };
+      delete mappedChanges.orders;
+      delete mappedChanges.order_lines;
+
+      return { changes: mappedChanges, timestamp };
+    },
+    pushChanges: async ({ changes, lastPulledAt }) => {
+      const url = buildUrl('/api/sales/sync');
+      const isGas = url.includes('script.google.com');
+
+      const rawChanges = changes as any;
+      // Translate local WatermelonDB schema to backend table names
+      const mappedChanges = {
+        ...rawChanges,
+        orders: rawChanges.pos_order || { created: [], updated: [], deleted: [] },
+        order_lines: rawChanges.pos_order_line || { created: [], updated: [], deleted: [] },
+      };
+      delete mappedChanges.pos_order;
+      delete mappedChanges.pos_order_line;
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': isGas ? 'text/plain;charset=utf-8' : 'application/json',
+          ...buildAuthHeaders(),
+        },
+        body: JSON.stringify({ changes: mappedChanges, lastPulledAt }),
+      });
+      if (!response.ok) {
+        throw new Error(await response.text());
+      }
+      const data = await response.json();
+      if (data && typeof data === 'object' && 'error' in data) {
+        throw new Error((data as any).error);
+      }
+    },
+  });
+
+  // Also publish menu to backend when sync is run
+  await publishMenuToBackend();
 }
 

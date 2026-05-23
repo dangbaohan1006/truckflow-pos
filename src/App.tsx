@@ -4,7 +4,7 @@ import {
   Store, Package, BarChart3, Settings, Wifi, WifiOff, Cloud, RefreshCw,
   Wallet, Users, DollarSign, LogOut, Shield, User, ClipboardList,
 } from 'lucide-react';
-import { mySync } from './database/index.js';
+import { mySync, publishMenuToBackend } from './database/index.js';
 import { AuthProvider, useAuth } from './auth/AuthContext.js';
 import LoginScreen from './auth/LoginScreen.js';
 import { getAccessibleModules, ROLE_LABELS, type Role } from './auth/permissions.js';
@@ -15,7 +15,7 @@ import Finance from './modules/Finance.js';
 import HR from './modules/HR.js';
 import SettingsPage from './modules/Settings.js';
 import StaffOrders from './modules/StaffOrders.js';
-import { ToastProvider } from './shared/ToastContext.js';
+import { ToastProvider, useToast } from './shared/ToastContext.js';
 
 const ICON_MAP: Record<string, any> = {
   Store, Package, BarChart3, DollarSign, Users, Settings, ClipboardList,
@@ -41,6 +41,7 @@ function AppContent() {
   const [activeModule, setActiveModule] = useState('pos');
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [syncing, setSyncing] = useState(false);
+  const toast = useToast();
 
   useEffect(() => {
     const handleOnline = () => setIsOnline(true);
@@ -56,9 +57,16 @@ function AppContent() {
   const handleSync = async () => {
     setSyncing(true);
     try {
+      toast.info('Bắt đầu đồng bộ thực đơn...');
+      await publishMenuToBackend();
+      
+      toast.info('Bắt đầu đồng bộ giao dịch bán hàng...');
       await mySync();
-    } catch (e) {
+      
+      toast.success('Đồng bộ dữ liệu thành công!');
+    } catch (e: any) {
       console.error('Sync failed:', e);
+      toast.error('Đồng bộ thất bại: ' + e.message);
     }
     setSyncing(false);
   };
@@ -67,6 +75,8 @@ function AppContent() {
   useEffect(() => {
     if (user && isOnline) {
       const timer = setTimeout(() => {
+        // Publish menu directly first so customer gets it instantly!
+        publishMenuToBackend().catch(err => console.error('Auto publish menu failed:', err));
         mySync().catch(err => console.error('Background auto-sync failed:', err));
       }, 3000);
       return () => clearTimeout(timer);
