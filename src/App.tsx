@@ -63,6 +63,16 @@ function AppContent() {
     setSyncing(false);
   };
 
+  // Background auto-sync 3 seconds after cashier startup/login if online
+  useEffect(() => {
+    if (user && isOnline) {
+      const timer = setTimeout(() => {
+        mySync().catch(err => console.error('Background auto-sync failed:', err));
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [user, isOnline]);
+
   // Get accessible modules based on user permissions
   const accessibleModules = user ? getAccessibleModules(user.permissions) : [];
 

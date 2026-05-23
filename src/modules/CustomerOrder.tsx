@@ -126,7 +126,71 @@ export default function CustomerOrder() {
 
   // Premium fallback mock menu items if DB is empty
   const displayMenuItems = useMemo(() => {
-    return menuItems;
+    if (menuItems && menuItems.length > 0) {
+      return menuItems;
+    }
+    return [
+      {
+        id: 'fallback-1',
+        name: 'Trà đào Cam Sả',
+        price: 35000,
+        category: 'Trà trái cây',
+        unit: 'Ly',
+        defaultDiscount: '0',
+        image: 'https://images.unsplash.com/photo-1556679343-c7306c1976bc?q=80&w=600&auto=format&fit=crop',
+        isActive: true
+      },
+      {
+        id: 'fallback-2',
+        name: 'Trà sữa Trân châu Đường đen',
+        price: 40000,
+        category: 'Trà sữa',
+        unit: 'Ly',
+        defaultDiscount: '0',
+        image: 'https://images.unsplash.com/photo-1541658016709-82535e94bc69?q=80&w=600&auto=format&fit=crop',
+        isActive: true
+      },
+      {
+        id: 'fallback-3',
+        name: 'Cà phê Muối hoàng gia',
+        price: 35000,
+        category: 'Cà phê',
+        unit: 'Ly',
+        defaultDiscount: '0',
+        image: 'https://images.unsplash.com/photo-1497935586351-b67a49e012bf?q=80&w=600&auto=format&fit=crop',
+        isActive: true
+      },
+      {
+        id: 'fallback-4',
+        name: 'Trà vải Thạch dừa',
+        price: 35000,
+        category: 'Trà trái cây',
+        unit: 'Ly',
+        defaultDiscount: '0',
+        image: 'https://images.unsplash.com/photo-1513558161293-cdaf765ed2fd?q=80&w=600&auto=format&fit=crop',
+        isActive: true
+      },
+      {
+        id: 'fallback-5',
+        name: 'Trà dâu tây đá tuyết',
+        price: 38000,
+        category: 'Trà trái cây',
+        unit: 'Ly',
+        defaultDiscount: '0',
+        image: 'https://images.unsplash.com/photo-1497534446932-c925b458314e?q=80&w=600&auto=format&fit=crop',
+        isActive: true
+      },
+      {
+        id: 'fallback-6',
+        name: 'Trà sữa Matcha Nhật Bản',
+        price: 38000,
+        category: 'Trà sữa',
+        unit: 'Ly',
+        defaultDiscount: '0',
+        image: 'https://images.unsplash.com/photo-1536256263959-770b48d82b0a?q=80&w=600&auto=format&fit=crop',
+        isActive: true
+      }
+    ];
   }, [menuItems]);
 
   const activeMenuItems = useMemo(() => displayMenuItems.filter((i: any) => i.isActive !== false), [displayMenuItems]);
