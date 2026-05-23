@@ -5,6 +5,13 @@ import MenuItem from './models/MenuItem.js';
 
 function buildAuthHeaders(): Record<string, string> {
   const token = getSessionToken();
+  // Avoid custom headers (like X-Session-Token or Authorization) for Google Apps Script Web Apps,
+  // as they trigger a CORS OPTIONS preflight request which GAS doesn't support.
+  // The token is already successfully appended as a query parameter in buildUrl().
+  const isGas = buildUrl('/test').includes('script.google.com');
+  if (isGas) {
+    return {};
+  }
   return token ? { 'X-Session-Token': token, Authorization: `Bearer ${token}` } : {};
 }
 
@@ -25,10 +32,11 @@ export async function publishMenuToBackend() {
     };
 
     const syncUrl = buildUrl('/api/customer-orders/menu/sync');
+    const isGas = syncUrl.includes('script.google.com');
     const syncResponse = await fetch(syncUrl, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
+        'Content-Type': isGas ? 'text/plain;charset=utf-8' : 'application/json',
         ...buildAuthHeaders(),
       },
       body: JSON.stringify(payload),

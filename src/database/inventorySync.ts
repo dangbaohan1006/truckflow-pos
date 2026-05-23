@@ -66,6 +66,13 @@ export async function inventorySyncProvider() {
 
 function buildAuthHeaders(): Record<string, string> {
   const token = getSessionToken();
+  // Avoid custom headers (like X-Session-Token or Authorization) for Google Apps Script Web Apps,
+  // as they trigger a CORS OPTIONS preflight request which GAS doesn't support.
+  // The token is already successfully appended as a query parameter in buildUrl().
+  const isGas = buildUrl('/test').includes('script.google.com');
+  if (isGas) {
+    return {};
+  }
   return token ? { 'X-Session-Token': token, Authorization: `Bearer ${token}` } : {};
 }
 
