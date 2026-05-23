@@ -101,25 +101,32 @@ export default function CustomerOrder() {
 
   // Premium fallback mock menu items if DB is empty
   const displayMenuItems = useMemo(() => {
-    if (menuItems.length > 0) return menuItems;
-
-    return [
-      { id: 'mock-1', name: 'Cà phê Sữa Đá', price: '29000', category: 'Cà phê', unit: 'Ly', defaultDiscount: '0', isActive: true, isPopular: true, description: 'Cà phê rang xay Robusta Đắk Lắk đậm đà kết hợp sữa đặc ngọt béo đặc trưng.' },
-      { id: 'mock-2', name: 'Trà Đào Cam Sả', price: '32000', category: 'Trà sữa & Trà', unit: 'Ly', defaultDiscount: '5', isActive: true, isPopular: true, description: 'Trà đen thanh mát ướp hương sả thơm cay dịu, kết hợp cùng đào ngâm và cam tươi.' },
-      { id: 'mock-3', name: 'Bạc Xỉu Sài Gòn', price: '29000', category: 'Cà phê', unit: 'Ly', defaultDiscount: '0', isActive: true, description: 'Nhiều sữa đặc béo ngậy, ít cà phê đắng nhẹ dịu dành cho ngày ngọt ngào.' },
-      { id: 'mock-4', name: 'Matcha Latte Đá', price: '39000', category: 'Sinh tố & Matcha', unit: 'Ly', defaultDiscount: '0', isActive: true, isNew: true, description: 'Trà xanh Uji Nhật Bản nguyên chất quyện đều với sữa tươi tươi thanh mát tuyệt hảo.' },
-      { id: 'mock-5', name: 'Sinh Tố Bơ Sáp', price: '45000', category: 'Sinh tố & Matcha', unit: 'Ly', defaultDiscount: '10', isActive: true, description: 'Bơ sáp loại 1 dẻo thơm ngậy xay nhuyễn mịn cùng sữa đặc sữa tươi thơm béo.' },
-      { id: 'mock-6', name: 'Cam Ép Nguyên Chất', price: '28000', category: 'Nước ép', unit: 'Ly', defaultDiscount: '0', isActive: true, description: 'Cam sành mọng nước ép tay tươi nguyên chất 100%, bổ sung Vitamin C sảng khoái.' },
-      { id: 'mock-7', name: 'Bánh Mì Thịt Nguội', price: '30000', category: 'Đồ ăn', unit: 'Ổ', defaultDiscount: '0', isActive: true, description: 'Bánh mì giòn rụm đầy ắp ba tê tươi béo ngậy, thịt nguội cao cấp và dưa chua.' },
-      { id: 'mock-8', name: 'Bánh Croissant Bơ Tỏi', price: '25000', category: 'Đồ ăn', unit: 'Cái', defaultDiscount: '0', isActive: true, isNew: true, description: 'Bánh sừng bò nướng giòn rụm ngập hương bơ Pháp và tỏi phi thơm nức lòng.' },
-    ];
+    return menuItems;
   }, [menuItems]);
 
   const activeMenuItems = useMemo(() => displayMenuItems.filter((i: any) => i.isActive !== false), [displayMenuItems]);
 
   const categories = useMemo(() => {
-    const cats = new Set(activeMenuItems.filter((i: any) => i.category).map((i: any) => i.category));
-    return ['all', ...Array.from(cats)];
+    const saved = (() => {
+      const stored = localStorage.getItem('truckflow_categories');
+      if (stored) {
+        try {
+          return JSON.parse(stored) as string[];
+        } catch {}
+      }
+      return ['Đồ uống', 'Đồ ăn', 'Tráng miệng', 'Khác'];
+    })();
+
+    const activeCats = activeMenuItems.filter((i: any) => i.category).map((i: any) => i.category);
+    // Combine saved list to respect user-sorted order, followed by any other dynamic categories in active items
+    const combined = new Set([...saved, ...activeCats]);
+    
+    // Only display categories that actually contain active menu items to keep the menu interface clean
+    const filteredCats = Array.from(combined).filter(cat =>
+      activeMenuItems.some((item: any) => item.category === cat)
+    );
+
+    return ['all', ...filteredCats];
   }, [activeMenuItems]);
 
   const filteredItems = useMemo(() => {
