@@ -24,14 +24,19 @@ async function postInventoryAction<T>(endpoint: string, body: Record<string, unk
     let detail = `HTTP ${response.status}`;
     try {
       const errorBody = await response.json();
-      detail = errorBody.detail || detail;
+      detail = errorBody.detail || errorBody.error || detail;
     } catch {
       // ignore parse errors
     }
     throw new Error(detail);
   }
 
-  return response.json();
+  const data = await response.json();
+  if (data && typeof data === 'object' && 'error' in data) {
+    throw new Error((data as any).error);
+  }
+
+  return data as T;
 }
 
 export async function receiveInventory(items: InventoryItemPayload[], locationId?: string, reference?: string, note?: string) {

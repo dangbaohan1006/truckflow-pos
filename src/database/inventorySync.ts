@@ -35,7 +35,11 @@ export async function inventorySyncProvider() {
       if (!response.ok) {
         throw new Error(await response.text());
       }
-      const { changes, timestamp } = await response.json();
+      const data = await response.json();
+      if (data && typeof data === 'object' && 'error' in data) {
+        throw new Error((data as any).error);
+      }
+      const { changes, timestamp } = data;
       return { changes, timestamp };
     },
     pushChanges: async ({ changes, lastPulledAt }) => {
@@ -51,6 +55,10 @@ export async function inventorySyncProvider() {
       });
       if (!response.ok) {
         throw new Error(await response.text());
+      }
+      const data = await response.json();
+      if (data && typeof data === 'object' && 'error' in data) {
+        throw new Error((data as any).error);
       }
     },
   });

@@ -19,7 +19,11 @@ export async function syncProvider() {
       if (!response.ok) {
         throw new Error(await response.text());
       }
-      const { changes, timestamp } = await response.json();
+      const data = await response.json();
+      if (data && typeof data === 'object' && 'error' in data) {
+        throw new Error((data as any).error);
+      }
+      const { changes, timestamp } = data;
       return { changes, timestamp };
     },
     pushChanges: async ({ changes, lastPulledAt }) => {
@@ -35,6 +39,10 @@ export async function syncProvider() {
       });
       if (!response.ok) {
         throw new Error(await response.text());
+      }
+      const data = await response.json();
+      if (data && typeof data === 'object' && 'error' in data) {
+        throw new Error((data as any).error);
       }
     },
   });
@@ -68,7 +76,12 @@ export async function syncProvider() {
     if (!syncResponse.ok) {
       console.warn('Failed to publish menu items to customer order backend:', await syncResponse.text());
     } else {
-      console.log('Successfully synchronized menu items to backend for customers!');
+      const data = await syncResponse.json();
+      if (data && typeof data === 'object' && 'error' in data) {
+        console.warn('Failed to publish menu items to customer order backend:', (data as any).error);
+      } else {
+        console.log('Successfully synchronized menu items to backend for customers!');
+      }
     }
   } catch (err) {
     console.error('Error synchronizing menu items with customer order backend:', err);

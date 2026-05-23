@@ -98,7 +98,12 @@ async function request<T>(
     throw new Error(errorDetail);
   }
 
-  return response.json();
+  const data = await response.json();
+  if (data && typeof data === 'object' && 'error' in data) {
+    throw new Error((data as any).error);
+  }
+
+  return data as T;
 }
 
 // ===== Customer-facing API (no auth) =====
