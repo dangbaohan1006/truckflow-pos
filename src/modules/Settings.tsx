@@ -389,7 +389,7 @@ export default function Settings() {
                     <td className="p-4">
                       <div className="flex items-center space-x-3">
                         <div className="w-8 h-8 bg-primary/10 text-primary rounded-full flex items-center justify-center text-xs font-bold">
-                          {u.displayName[0]?.toUpperCase() || 'U'}
+                          {u.displayName?.[0]?.toUpperCase() || 'U'}
                         </div>
                         <span className="font-medium text-sm">{u.displayName}</span>
                       </div>

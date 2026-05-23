@@ -200,7 +200,7 @@ export default function HR() {
             {filteredEmployees.map((emp: any) => (
               <div key={emp.id} className="bg-white rounded-xl p-4 shadow-sm border border-surface-zen">
                 <div className="flex items-center space-x-3 mb-3">
-                  <div className="w-12 h-12 bg-primary/10 text-primary rounded-full flex items-center justify-center text-lg font-bold">{emp.name[0]}</div>
+                  <div className="w-12 h-12 bg-primary/10 text-primary rounded-full flex items-center justify-center text-lg font-bold">{emp.name?.[0] || 'E'}</div>
                   <div className="flex-1">
                     <h4 className="font-semibold">{emp.name}</h4>
                     <p className="text-xs text-text-secondary">{emp.role || 'Chưa phân công'}</p>

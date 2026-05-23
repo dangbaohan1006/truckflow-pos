@@ -125,7 +125,7 @@ function AppContent() {
         <div className="px-4 pt-4 pb-2 border-b border-surface-zen">
           <div className="flex items-center space-x-3 px-2">
             <div className="w-9 h-9 bg-primary/10 text-primary rounded-full flex items-center justify-center text-sm font-bold">
-              {user.displayName[0]?.toUpperCase() || 'U'}
+              {user.displayName?.[0]?.toUpperCase() || 'U'}
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-semibold truncate">{user.displayName}</p>

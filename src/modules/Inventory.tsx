@@ -597,7 +597,7 @@ export default function Inventory() {
   const renderItemCard = (item: any, showLocation = false) => (
     <div key={item.id} className="bg-white rounded-xl p-4 shadow-sm border border-surface-zen hover:shadow-md transition-all">
       <div className="flex items-center justify-between mb-3">
-        <div className="w-10 h-10 bg-primary/10 text-primary rounded-lg flex items-center justify-center font-bold">{item.name[0]}</div>
+        <div className="w-10 h-10 bg-primary/10 text-primary rounded-lg flex items-center justify-center font-bold">{item.name?.[0] || 'I'}</div>
         <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${item.isRawMaterial ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>
           {item.isRawMaterial ? 'Nguyên liệu' : 'Sản phẩm'}
         </span>
