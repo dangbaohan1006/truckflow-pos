@@ -44,8 +44,39 @@ function doGet(e) {
       case '/api/health':
         result = { status: 'ok', timestamp: new Date().toISOString() };
         break;
+
+      case '/api/customer-orders/menu':
+        result = handleGetCustomerMenu();
+        break;
         
+      case '/api/customer-orders/pending':
+        result = handleGetPendingOrders(params, headers);
+        break;
+        
+      case '/api/customer-orders/all':
+        result = handleGetAllOrders(params, headers);
+        break;
+        
+      case '/api/customer-orders/notifications/unread':
+        result = handleGetUnreadNotifications(headers);
+        break;
+        
+      case '/api/customer-orders/notifications/all':
+        result = handleGetAllNotifications(headers);
+        break;
+
       default:
+        // Handle dynamic paths
+        if (path.startsWith('/api/customer-orders/')) {
+          const segments = path.split('/');
+          // segments: ["", "api", "customer-orders", "{orderId}"]
+          if (segments.length === 4) {
+            const orderId = segments[3];
+            result = handleGetOrderDetail(orderId, headers);
+            break;
+          }
+        }
+        
         result = { error: 'Not found', path: path };
         return sendJsonResponse_(result, 404);
     }
@@ -123,8 +154,49 @@ function doPost(e) {
       case '/api/inventory/adjust':
         result = handleInventoryAdjust(body, headers);
         break;
-        
+
+      case '/api/customer-orders/menu/sync':
+        result = handleSyncMenu(body, headers);
+        break;
+
+      case '/api/customer-orders':
+        result = handleCreateCustomerOrder(body);
+        break;
+
+      case '/api/customer-orders/notifications/read-all':
+        result = handleMarkAllNotificationsRead(headers);
+        break;
+
       default:
+        // Handle dynamic paths
+        if (path.startsWith('/api/customer-orders/')) {
+          const segments = path.split('/');
+          // For: /api/customer-orders/{orderId}/{action}
+          if (segments.length === 5) {
+            const orderId = segments[3];
+            const action = segments[4];
+            if (action === 'confirm') {
+              result = handleConfirmOrder(orderId, headers);
+              break;
+            } else if (action === 'cancel') {
+              result = handleCancelOrder(orderId, headers);
+              break;
+            } else if (action === 'complete') {
+              result = handleCompleteOrder(orderId, headers);
+              break;
+            } else if (action === 'update') {
+              result = handleUpdateOrder(orderId, body, headers);
+              break;
+            }
+          }
+          // For: /api/customer-orders/notifications/{notifId}/read
+          if (segments.length === 6 && segments[3] === 'notifications' && segments[5] === 'read') {
+            const notifId = segments[4];
+            result = handleMarkNotificationRead(notifId, headers);
+            break;
+          }
+        }
+
         result = { error: 'Not found', path: path };
         return sendJsonResponse_(result, 404);
     }

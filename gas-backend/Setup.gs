@@ -16,6 +16,10 @@ function setupSheet() {
     orders: ['id', 'total', 'status', 'created_at', 'updated_at'],
     order_lines: ['id', 'order_id', 'product_id', 'quantity', 'price', 'created_at'],
     outbox: ['id', 'aggregate_type', 'aggregate_id', 'event_type', 'payload', 'created_at'],
+    menu_items: ['id', 'name', 'price', 'category', 'unit', 'default_discount', 'is_active', 'image', 'created_at', 'updated_at'],
+    customer_orders: ['id', 'table_number', 'customer_name', 'customer_phone', 'note', 'status', 'truck_id', 'staff_note', 'created_at', 'updated_at'],
+    customer_order_items: ['id', 'order_id', 'menu_item_id', 'product_name', 'quantity', 'price', 'note'],
+    order_notifications: ['id', 'order_id', 'type', 'message', 'is_read', 'created_at'],
   };
   
   for (const [sheetName, headers] of Object.entries(sheetConfig)) {

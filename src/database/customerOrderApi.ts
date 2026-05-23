@@ -6,7 +6,7 @@
  * Staff-facing endpoints require session token.
  */
 
-import { getSessionToken } from '../auth/authApi.js';
+import { getSessionToken, buildUrl } from '../auth/authApi.js';
 
 const API_BASE = '/api/customer-orders';
 
@@ -80,7 +80,7 @@ async function request<T>(
     }
   }
 
-  const url = `${API_BASE}${endpoint}`;
+  const url = buildUrl(`${API_BASE}${endpoint}`);
 
   const response = await fetch(url, {
     ...options,

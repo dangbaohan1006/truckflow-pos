@@ -9,6 +9,7 @@ import { database } from '../database/index.js';
 import MenuItem from '../database/models/MenuItem.js';
 import { formatCurrency, generateId } from '../shared/utils.js';
 import { createCustomerOrder } from '../database/customerOrderApi.js';
+import { buildUrl } from '../auth/authApi.js';
 
 // Zen-themed color design tokens
 const colors = {
@@ -98,7 +99,7 @@ export default function CustomerOrder() {
     let isMounted = true;
     async function fetchMenu() {
       try {
-        const response = await fetch('/api/customer-orders/menu');
+        const response = await fetch(buildUrl('/api/customer-orders/menu'));
         if (!response.ok) throw new Error('Failed to fetch menu from backend');
         const data = await response.json();
         if (isMounted) {

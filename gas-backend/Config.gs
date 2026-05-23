@@ -21,6 +21,10 @@ const SHEETS = {
   ORDERS: 'orders',
   ORDER_LINES: 'order_lines',
   OUTBOX: 'outbox',
+  MENU_ITEMS: 'menu_items',
+  CUSTOMER_ORDERS: 'customer_orders',
+  CUSTOMER_ORDER_ITEMS: 'customer_order_items',
+  ORDER_NOTIFICATIONS: 'order_notifications',
 };
 
 // ============================================================
@@ -34,6 +38,10 @@ const COLUMNS = {
   ORDERS: ['id', 'total', 'status', 'created_at', 'updated_at'],
   ORDER_LINES: ['id', 'order_id', 'product_id', 'quantity', 'price', 'created_at'],
   OUTBOX: ['id', 'aggregate_type', 'aggregate_id', 'event_type', 'payload', 'created_at'],
+  MENU_ITEMS: ['id', 'name', 'price', 'category', 'unit', 'default_discount', 'is_active', 'image', 'created_at', 'updated_at'],
+  CUSTOMER_ORDERS: ['id', 'table_number', 'customer_name', 'customer_phone', 'note', 'status', 'truck_id', 'staff_note', 'created_at', 'updated_at'],
+  CUSTOMER_ORDER_ITEMS: ['id', 'order_id', 'menu_item_id', 'product_name', 'quantity', 'price', 'note'],
+  ORDER_NOTIFICATIONS: ['id', 'order_id', 'type', 'message', 'is_read', 'created_at'],
 };
 
 // ============================================================
