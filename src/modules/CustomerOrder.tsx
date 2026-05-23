@@ -198,13 +198,14 @@ export default function CustomerOrder() {
   if (orderSuccess) {
     return (
       <div style={{
-        minHeight: '100%',
+        height: '100dvh',
         background: `linear-gradient(135deg, ${colors.primary} 0%, #fff7ed 40%, #fff 100%)`,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
         padding: '20px',
-        boxSizing: 'border-box'
+        boxSizing: 'border-box',
+        overflow: 'hidden'
       }}>
         <motion.div
           initial={{ opacity: 0, scale: 0.9 }}
@@ -282,7 +283,7 @@ export default function CustomerOrder() {
   if (showInfoForm) {
     return (
       <div style={{
-        minHeight: '100%',
+        height: '100dvh',
         background: `radial-gradient(circle at top left, rgba(142, 151, 117, 0.15) 0%, transparent 40%),
                      radial-gradient(circle at bottom right, rgba(226, 132, 19, 0.1) 0%, transparent 40%),
                      #FDFCF8`,
@@ -291,7 +292,8 @@ export default function CustomerOrder() {
         alignItems: 'center',
         justifyContent: 'center',
         padding: '24px',
-        boxSizing: 'border-box'
+        boxSizing: 'border-box',
+        overflow: 'hidden'
       }}>
         <motion.div
           initial={{ opacity: 0, y: 30 }}
@@ -461,12 +463,12 @@ export default function CustomerOrder() {
   // ── Main Ordering Interface ──────────────────────────────────
   return (
     <div style={{
-      minHeight: '100%',
+      height: '100dvh',
       background: colors.background,
       display: 'flex',
       flexDirection: 'column',
       position: 'relative',
-      overflowX: 'hidden'
+      overflow: 'hidden'
     }}>
 
       {/* ── STICKY HEADER ── */}
@@ -638,20 +640,24 @@ export default function CustomerOrder() {
                     overflow: 'hidden'
                   }}
                 >
-                  {/* Category gradient thumbnail */}
+                  {/* Image / Category gradient thumbnail */}
                   <div style={{
                     width: '64px',
                     height: '64px',
-                    background: catStyles.gradient,
                     borderRadius: '16px',
+                    overflow: 'hidden',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    fontSize: '28px',
                     flexShrink: 0,
-                    boxShadow: 'inset 0 1px 2px rgba(255,255,255,0.2)'
+                    boxShadow: 'inset 0 1px 2px rgba(255,255,255,0.2), 0 4px 10px rgba(0,0,0,0.05)',
+                    background: item.image ? '#f4f2eb' : catStyles.gradient,
                   }}>
-                    {catStyles.emoji}
+                    {item.image ? (
+                      <img src={item.image} alt={item.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    ) : (
+                      <span style={{ fontSize: '28px' }}>{catStyles.emoji}</span>
+                    )}
                   </div>
 
                   {/* Details */}

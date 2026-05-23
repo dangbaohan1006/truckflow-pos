@@ -12,6 +12,7 @@ export default class MenuItem extends Model {
   @field('discount_start') discountStart!: number;
   @field('discount_end') discountEnd!: number;
   @field('is_active') isActive!: boolean;
+  @field('image') image!: string;
   @readonly @date('created_at') createdAt!: number;
   @readonly @date('updated_at') updatedAt!: number;
 }

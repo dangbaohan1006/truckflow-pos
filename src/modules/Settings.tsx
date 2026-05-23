@@ -820,7 +820,7 @@ function MenuConfig({ units }: { units: string[] }) {
 
   const [itemForm, setItemForm] = useState({
     name: '', price: '', category: getSavedCategories()[0] || 'Đồ uống', unit: '',
-    defaultDiscount: '0', discountStart: '', discountEnd: '', isActive: true,
+    defaultDiscount: '0', discountStart: '', discountEnd: '', isActive: true, image: '',
   });
 
   const [ingredientForm, setIngredientForm] = useState({
@@ -868,6 +868,7 @@ function MenuConfig({ units }: { units: string[] }) {
         m.discountStart = discountStart;
         m.discountEnd = discountEnd;
         m.isActive = itemForm.isActive;
+        m.image = itemForm.image || '';
       });
       // Save pending ingredients
       for (const ing of pendingIngredients) {
@@ -883,7 +884,7 @@ function MenuConfig({ units }: { units: string[] }) {
     });
     setShowAddItem(false);
     setPendingIngredients([]);
-    setItemForm({ name: '', price: '', category: categories[0] || 'Đồ uống', unit: '', defaultDiscount: '0', discountStart: '', discountEnd: '', isActive: true });
+    setItemForm({ name: '', price: '', category: categories[0] || 'Đồ uống', unit: '', defaultDiscount: '0', discountStart: '', discountEnd: '', isActive: true, image: '' });
     toast.success(`Đã thêm món "${itemForm.name}" vào menu với ${pendingIngredients.length} nguyên liệu`);
   };
 
@@ -902,6 +903,7 @@ function MenuConfig({ units }: { units: string[] }) {
         m.discountStart = discountStart;
         m.discountEnd = discountEnd;
         m.isActive = showEditItem.isActive;
+        m.image = showEditItem.image || '';
       });
 
       // Synchronize ingredients directly in edit mode
@@ -1035,7 +1037,18 @@ function MenuConfig({ units }: { units: string[] }) {
               const ings = getIngredientsForItem(item.id);
               return (
                 <tr key={item.id} className="border-t border-surface-zen hover:bg-surface-zen/50">
-                  <td className="p-4 font-medium text-sm">{item.name}</td>
+                  <td className="p-4 font-medium text-sm">
+                    <div className="flex items-center space-x-2.5">
+                      <div className="w-9 h-9 rounded-lg border border-surface-zen bg-surface-zen/30 flex items-center justify-center overflow-hidden flex-shrink-0">
+                        {item.image ? (
+                          <img src={item.image} alt={item.name} className="w-full h-full object-cover" />
+                        ) : (
+                          <span className="text-[10px] text-text-secondary font-semibold font-mono">{item.name.slice(0, 2).toUpperCase()}</span>
+                        )}
+                      </div>
+                      <span className="text-primary-dark font-medium">{item.name}</span>
+                    </div>
+                  </td>
                   <td className="p-4 text-sm text-text-secondary">{item.category}</td>
                   <td className="p-4 text-sm font-bold text-accent">{parseInt(item.price).toLocaleString()}đ</td>
                   <td className="p-4 text-sm">
@@ -1072,6 +1085,7 @@ function MenuConfig({ units }: { units: string[] }) {
                           discountStart: item.discountStart > 0 ? new Date(item.discountStart).toISOString().slice(0, 16) : '',
                           discountEnd: item.discountEnd > 0 ? new Date(item.discountEnd).toISOString().slice(0, 16) : '',
                           isActive: item.isActive,
+                          image: item.image || '',
                         });
                         // Load ingredients into editPendingIngredients state
                         const currentIngs = getIngredientsForItem(item.id).map((ing: any) => ({
@@ -1109,6 +1123,46 @@ function MenuConfig({ units }: { units: string[] }) {
               onChange={(e: any) => setItemForm({ ...itemForm, name: e.target.value })} placeholder="VD: Cà phê sữa đá..." />
             <Input label="Giá bán" type="number" value={itemForm.price}
               onChange={(e: any) => setItemForm({ ...itemForm, price: e.target.value })} placeholder="25000" />
+            
+            {/* Hình ảnh món ăn */}
+            <div className="space-y-1.5 p-3.5 bg-surface-zen/20 border border-surface-zen/40 rounded-xl">
+              <label className="text-xs text-text-secondary font-semibold block">Hình ảnh món ăn</label>
+              <div className="flex items-center space-x-3">
+                <div className="w-14 h-14 rounded-xl border border-surface-zen flex items-center justify-center bg-white overflow-hidden flex-shrink-0">
+                  {itemForm.image ? (
+                    <img src={itemForm.image} alt="Preview" className="w-full h-full object-cover" />
+                  ) : (
+                    <span className="text-text-secondary text-[9px] text-center px-1 font-medium leading-tight">Chưa có ảnh</span>
+                  )}
+                </div>
+                <div className="flex-1 flex flex-col space-y-1">
+                  <input type="file" accept="image/*" id="dish-image-upload-add" className="hidden"
+                    onChange={(e: any) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        const reader = new FileReader();
+                        reader.onloadend = () => {
+                          setItemForm({ ...itemForm, image: reader.result as string });
+                        };
+                        reader.readAsDataURL(file);
+                      }
+                    }} />
+                  <div className="flex space-x-2">
+                    <label htmlFor="dish-image-upload-add"
+                      className="px-2.5 py-1.5 bg-primary/10 text-primary rounded-lg text-xs font-bold hover:bg-primary/20 transition-all cursor-pointer">
+                      Chọn ảnh
+                    </label>
+                    {itemForm.image && (
+                      <button onClick={() => setItemForm({ ...itemForm, image: '' })}
+                        className="px-2.5 py-1.5 bg-error-zen/10 text-error-zen rounded-lg text-xs font-bold hover:bg-error-zen/20 transition-all">
+                        Xóa ảnh
+                      </button>
+                    )}
+                  </div>
+                  <p className="text-[9px] text-text-secondary">Hỗ trợ JPG, PNG. Lưu ngoại tuyến trực tiếp.</p>
+                </div>
+              </div>
+            </div>
             
             <Select label="Danh mục" value={itemForm.category}
               onChange={(e: any) => setItemForm({ ...itemForm, category: e.target.value })}
@@ -1222,6 +1276,46 @@ function MenuConfig({ units }: { units: string[] }) {
               onChange={(e: any) => setShowEditItem({ ...showEditItem, name: e.target.value })} />
             <Input label="Giá bán" type="number" value={showEditItem.price}
               onChange={(e: any) => setShowEditItem({ ...showEditItem, price: e.target.value })} />
+            
+            {/* Hình ảnh món ăn */}
+            <div className="space-y-1.5 p-3.5 bg-surface-zen/20 border border-surface-zen/40 rounded-xl">
+              <label className="text-xs text-text-secondary font-semibold block">Hình ảnh món ăn</label>
+              <div className="flex items-center space-x-3">
+                <div className="w-14 h-14 rounded-xl border border-surface-zen flex items-center justify-center bg-white overflow-hidden flex-shrink-0">
+                  {showEditItem.image ? (
+                    <img src={showEditItem.image} alt="Preview" className="w-full h-full object-cover" />
+                  ) : (
+                    <span className="text-text-secondary text-[9px] text-center px-1 font-medium leading-tight">Chưa có ảnh</span>
+                  )}
+                </div>
+                <div className="flex-1 flex flex-col space-y-1">
+                  <input type="file" accept="image/*" id="dish-image-upload-edit" className="hidden"
+                    onChange={(e: any) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        const reader = new FileReader();
+                        reader.onloadend = () => {
+                          setShowEditItem({ ...showEditItem, image: reader.result as string });
+                        };
+                        reader.readAsDataURL(file);
+                      }
+                    }} />
+                  <div className="flex space-x-2">
+                    <label htmlFor="dish-image-upload-edit"
+                      className="px-2.5 py-1.5 bg-primary/10 text-primary rounded-lg text-xs font-bold hover:bg-primary/20 transition-all cursor-pointer">
+                      Chọn ảnh
+                    </label>
+                    {showEditItem.image && (
+                      <button onClick={() => setShowEditItem({ ...showEditItem, image: '' })}
+                        className="px-2.5 py-1.5 bg-error-zen/10 text-error-zen rounded-lg text-xs font-bold hover:bg-error-zen/20 transition-all">
+                        Xóa ảnh
+                      </button>
+                    )}
+                  </div>
+                  <p className="text-[9px] text-text-secondary">Hỗ trợ JPG, PNG. Lưu ngoại tuyến trực tiếp.</p>
+                </div>
+              </div>
+            </div>
             
             <Select label="Danh mục" value={showEditItem.category}
               onChange={(e: any) => setShowEditItem({ ...showEditItem, category: e.target.value })}

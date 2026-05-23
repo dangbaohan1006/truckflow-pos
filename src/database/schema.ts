@@ -6,7 +6,7 @@
 import { appSchema, tableSchema } from '@nozbe/watermelondb';
 
 export const schema = appSchema({
-  version: 3,
+  version: 4,
   tables: [
     // ===== Inventory =====
     tableSchema({
@@ -192,6 +192,7 @@ export const schema = appSchema({
         { name: 'discount_start', type: 'number' },
         { name: 'discount_end', type: 'number' },
         { name: 'is_active', type: 'boolean' },
+        { name: 'image', type: 'string', isOptional: true },
         { name: 'created_at', type: 'number' },
         { name: 'updated_at', type: 'number', isIndexed: true },
       ],
