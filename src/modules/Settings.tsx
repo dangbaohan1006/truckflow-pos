@@ -30,6 +30,16 @@ const getSavedUnits = (): string[] => {
   return ['Kg', 'Gram', 'Lít', 'Ml', 'Lon', 'Hộp', 'Chai', 'Bịch', 'Ổ', 'Cái', 'Ly', 'Phần', 'Suất'];
 };
 
+const getSavedCategories = (): string[] => {
+  const saved = localStorage.getItem('truckflow_categories');
+  if (saved) {
+    try {
+      return JSON.parse(saved);
+    } catch {}
+  }
+  return ['Đồ uống', 'Đồ ăn', 'Tráng miệng', 'Khác'];
+};
+
 export default function Settings() {
   const toast = useToast();
   const { user: currentUser, hasPermission, isAdmin } = useAuth();
@@ -802,8 +812,12 @@ function MenuConfig({ units }: { units: string[] }) {
   const [showIngredients, setShowIngredients] = useState<any>(null);
   const [searchTerm, setSearchTerm] = useState('');
 
+  const [categories, setCategories] = useState<string[]>(getSavedCategories);
+  const [showCategoryModal, setShowCategoryModal] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState('');
+
   const [itemForm, setItemForm] = useState({
-    name: '', price: '', category: 'Đồ uống', unit: '',
+    name: '', price: '', category: getSavedCategories()[0] || 'Đồ uống', unit: '',
     defaultDiscount: '0', discountStart: '', discountEnd: '', isActive: true,
   });
 
@@ -867,7 +881,7 @@ function MenuConfig({ units }: { units: string[] }) {
     });
     setShowAddItem(false);
     setPendingIngredients([]);
-    setItemForm({ name: '', price: '', category: 'Đồ uống', unit: '', defaultDiscount: '0', discountStart: '', discountEnd: '', isActive: true });
+    setItemForm({ name: '', price: '', category: categories[0] || 'Đồ uống', unit: '', defaultDiscount: '0', discountStart: '', discountEnd: '', isActive: true });
     toast.success(`Đã thêm món "${itemForm.name}" vào menu với ${pendingIngredients.length} nguyên liệu`);
   };
 
@@ -988,10 +1002,17 @@ function MenuConfig({ units }: { units: string[] }) {
             onChange={(e: any) => setSearchTerm(e.target.value)}
             className="w-full pl-10 pr-4 py-2.5 bg-white border border-surface-zen rounded-lg focus:ring-2 focus:ring-primary/30 outline-none" />
         </div>
-        <button onClick={() => setShowAddItem(true)}
-          className="px-4 py-2.5 bg-accent text-white rounded-lg text-sm font-medium hover:bg-primary-dark transition-all flex items-center space-x-1">
-          <Plus size={16} /><span>Thêm món</span>
-        </button>
+        <div className="flex items-center space-x-2">
+          <button onClick={() => setShowCategoryModal(true)}
+            className="px-4 py-2.5 bg-primary/10 text-primary border border-primary/20 rounded-lg text-sm font-medium hover:bg-primary/20 transition-all flex items-center space-x-1"
+            title="Quản lý danh mục món ăn">
+            <span>Quản lý danh mục</span>
+          </button>
+          <button onClick={() => setShowAddItem(true)}
+            className="px-4 py-2.5 bg-accent text-white rounded-lg text-sm font-medium hover:bg-primary-dark transition-all flex items-center space-x-1">
+            <Plus size={16} /><span>Thêm món</span>
+          </button>
+        </div>
       </div>
 
       <div className="bg-white rounded-xl shadow-sm border border-surface-zen overflow-hidden">
@@ -1089,12 +1110,7 @@ function MenuConfig({ units }: { units: string[] }) {
             
             <Select label="Danh mục" value={itemForm.category}
               onChange={(e: any) => setItemForm({ ...itemForm, category: e.target.value })}
-              options={[
-                { value: 'Đồ uống', label: 'Đồ uống' },
-                { value: 'Đồ ăn', label: 'Đồ ăn' },
-                { value: 'Tráng miệng', label: 'Tráng miệng' },
-                { value: 'Khác', label: 'Khác' },
-              ]} />
+              options={categories.map(c => ({ value: c, label: c }))} />
 
             {/* Khung giảm giá riêng biệt */}
             <div className="p-4 bg-amber-50/30 border border-amber-100 rounded-xl space-y-3">
@@ -1207,12 +1223,7 @@ function MenuConfig({ units }: { units: string[] }) {
             
             <Select label="Danh mục" value={showEditItem.category}
               onChange={(e: any) => setShowEditItem({ ...showEditItem, category: e.target.value })}
-              options={[
-                { value: 'Đồ uống', label: 'Đồ uống' },
-                { value: 'Đồ ăn', label: 'Đồ ăn' },
-                { value: 'Tráng miệng', label: 'Tráng miệng' },
-                { value: 'Khác', label: 'Khác' },
-              ]} />
+              options={categories.map(c => ({ value: c, label: c }))} />
 
             {/* Khung giảm giá riêng biệt */}
             <div className="p-4 bg-amber-50/30 border border-amber-100 rounded-xl space-y-3">
@@ -1359,6 +1370,77 @@ function MenuConfig({ units }: { units: string[] }) {
                 className="w-full py-3 bg-accent text-white rounded-xl font-medium hover:bg-primary-dark transition-all disabled:opacity-50">
                 Thêm nguyên liệu
               </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* Category Management Modal */}
+      {showCategoryModal && (
+        <Modal title="Quản lý danh mục món ăn" onClose={() => setShowCategoryModal(false)}>
+          <div className="space-y-4">
+            <p className="text-xs text-text-secondary">Cấu hình danh mục thực đơn hiển thị trên giao diện POS.</p>
+            
+            {/* Form thêm danh mục */}
+            <div className="flex space-x-2 items-end">
+              <div className="flex-1">
+                <label className="text-xs text-text-secondary font-medium block mb-1">Tên danh mục mới</label>
+                <input type="text" value={newCategoryName} onChange={(e) => setNewCategoryName(e.target.value)}
+                  placeholder="VD: Ăn vặt, Combo..."
+                  className="w-full px-3 py-2 border border-surface-zen rounded-lg text-sm focus:ring-2 focus:ring-primary/30 outline-none" />
+              </div>
+              <button onClick={() => {
+                const trimmed = newCategoryName.trim();
+                if (!trimmed) return;
+                if (categories.some(c => c.toLowerCase() === trimmed.toLowerCase())) {
+                  toast.error('Danh mục này đã tồn tại!');
+                  return;
+                }
+                const updated = [...categories, trimmed];
+                setCategories(updated);
+                localStorage.setItem('truckflow_categories', JSON.stringify(updated));
+                setNewCategoryName('');
+                toast.success(`Đã thêm danh mục "${trimmed}"`);
+              }}
+                className="px-4 py-2 bg-accent text-white rounded-lg text-sm font-medium hover:bg-primary-dark transition-all flex items-center space-x-1 h-[38px]">
+                <Plus size={14} />
+                <span>Thêm</span>
+              </button>
+            </div>
+
+            {/* Danh sách danh mục */}
+            <div className="border border-surface-zen rounded-xl overflow-hidden bg-surface-zen/10">
+              <div className="bg-surface-zen px-4 py-2 font-semibold text-xs text-text-secondary border-b border-surface-zen">
+                Danh mục hiện có ({categories.length})
+              </div>
+              <div className="divide-y divide-surface-zen max-h-[250px] overflow-y-auto bg-white">
+                {categories.map((cat) => {
+                  const itemCount = menuItems.filter((item: any) => item.category === cat).length;
+                  return (
+                    <div key={cat} className="flex justify-between items-center px-4 py-2.5 hover:bg-surface-zen/20 transition-all">
+                      <div className="flex flex-col">
+                        <span className="font-medium text-sm text-primary-dark">{cat}</span>
+                        <span className="text-[10px] text-text-secondary">{itemCount} món ăn</span>
+                      </div>
+                      <button onClick={() => {
+                        if (itemCount > 0) {
+                          if (!confirm(`Danh mục "${cat}" đang có ${itemCount} món ăn hoạt động. Xóa danh mục có thể khiến các món này hiển thị sai danh mục. Bạn chắc chắn muốn xóa?`)) return;
+                        } else {
+                          if (!confirm(`Xóa danh mục "${cat}"?`)) return;
+                        }
+                        const updated = categories.filter(c => c !== cat);
+                        setCategories(updated);
+                        localStorage.setItem('truckflow_categories', JSON.stringify(updated));
+                        toast.success(`Đã xóa danh mục "${cat}"`);
+                      }}
+                        className="p-1 text-text-secondary hover:text-error-zen hover:bg-error-zen/10 rounded transition-all"
+                        title="Xóa danh mục">
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           </div>
         </Modal>
