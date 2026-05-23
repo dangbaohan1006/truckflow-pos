@@ -67,9 +67,29 @@ function AppContent() {
   const accessibleModules = user ? getAccessibleModules(user.permissions) : [];
 
   // For STAFF role, further filter by custom module access
+  // For STAFF role, further filter by custom module access
   const staffModuleAccess = user?.role === 'STAFF' ? (user as any).moduleAccess : null;
   const filteredModules = staffModuleAccess
-    ? accessibleModules.filter((mod) => staffModuleAccess.includes(mod.key))
+    ? accessibleModules.filter((mod) => {
+        try {
+          if (typeof staffModuleAccess === 'string') {
+            // Handle if it's a JSON array string
+            if (staffModuleAccess.trim().startsWith('[')) {
+              const parsed = JSON.parse(staffModuleAccess);
+              if (Array.isArray(parsed)) {
+                return parsed.includes(mod.key);
+              }
+            }
+            return staffModuleAccess.includes(mod.key);
+          }
+          if (Array.isArray(staffModuleAccess)) {
+            return staffModuleAccess.includes(mod.key);
+          }
+        } catch (e) {
+          console.error('Failed to parse staff module access:', e);
+        }
+        return false;
+      })
     : accessibleModules;
 
 

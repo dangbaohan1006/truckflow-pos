@@ -235,16 +235,19 @@ export const MODULE_ACCESS: ModuleAccess[] = [
 
 // ===== Helper: Check if user has a permission =====
 export function hasPermission(userPermissions: Permission[], permission: Permission): boolean {
+  if (!userPermissions || !Array.isArray(userPermissions)) return false;
   return userPermissions.includes(PERMISSIONS.SYSTEM_ADMIN) || userPermissions.includes(permission);
 }
 
 // ===== Helper: Check if user has any of the required permissions =====
 export function hasAnyPermission(userPermissions: Permission[], requiredPermissions: Permission[]): boolean {
+  if (!userPermissions || !Array.isArray(userPermissions)) return false;
   if (userPermissions.includes(PERMISSIONS.SYSTEM_ADMIN)) return true;
   return requiredPermissions.some((p) => userPermissions.includes(p));
 }
 
 // ===== Helper: Get accessible modules for a user =====
 export function getAccessibleModules(userPermissions: Permission[]): ModuleAccess[] {
+  if (!userPermissions || !Array.isArray(userPermissions)) return [];
   return MODULE_ACCESS.filter((mod) => hasAnyPermission(userPermissions, mod.requiredPermissions));
 }

@@ -221,7 +221,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // ---------------------------------------------------------------------------
   const hasPermission = useCallback(
     (permission: Permission) => {
-      if (!user) return false;
+      if (!user || !user.permissions || !Array.isArray(user.permissions)) return false;
       return user.permissions.includes('system:admin' as Permission) || user.permissions.includes(permission);
     },
     [user]
@@ -229,7 +229,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const hasAnyPermission = useCallback(
     (permissions: Permission[]) => {
-      if (!user) return false;
+      if (!user || !user.permissions || !Array.isArray(user.permissions)) return false;
       if (user.permissions.includes('system:admin' as Permission)) return true;
       return permissions.some((p) => user.permissions.includes(p));
     },
