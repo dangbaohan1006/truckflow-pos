@@ -837,6 +837,10 @@ function MenuConfig({ units }: { units: string[] }) {
     materialId: string; materialName: string; quantity: string; unit: string;
   }>>([]);
 
+  // Bulk add state
+  const [addMode, setAddMode] = useState<'single' | 'bulk'>('single');
+  const [bulkText, setBulkText] = useState('');
+
   useEffect(() => {
     const sub1 = database.get<MenuItem>('menu_items').query().observe().subscribe(setMenuItems);
     const sub2 = database.get<MenuIngredient>('menu_ingredients').query().observe().subscribe(setMenuIngredients);
@@ -851,11 +855,14 @@ function MenuConfig({ units }: { units: string[] }) {
     !searchTerm || item.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const addMenuItem = async () => {
+  const addMenuItem = async (keepOpen: boolean = false) => {
     if (!itemForm.name || !itemForm.price) return;
     const discountStart = itemForm.discountStart ? new Date(itemForm.discountStart).getTime() : 0;
     const discountEnd = itemForm.discountEnd ? new Date(itemForm.discountEnd).getTime() : 0;
     const menuItemId = generateId();
+    const itemName = itemForm.name;
+    const itemIngredientsCount = pendingIngredients.length;
+    
     await database.write(async () => {
       // Create menu item
       await database.get<MenuItem>('menu_items').create((m: any) => {
@@ -882,10 +889,81 @@ function MenuConfig({ units }: { units: string[] }) {
         });
       }
     });
-    setShowAddItem(false);
+
     setPendingIngredients([]);
-    setItemForm({ name: '', price: '', category: categories[0] || 'Đồ uống', unit: '', defaultDiscount: '0', discountStart: '', discountEnd: '', isActive: true, image: '' });
-    toast.success(`Đã thêm món "${itemForm.name}" vào menu với ${pendingIngredients.length} nguyên liệu`);
+    // Reset inputs, but keep the current category preselected for faster adding
+    setItemForm({
+      name: '',
+      price: '',
+      category: itemForm.category,
+      unit: '',
+      defaultDiscount: '0',
+      discountStart: '',
+      discountEnd: '',
+      isActive: true,
+      image: '',
+    });
+    
+    if (!keepOpen) {
+      setShowAddItem(false);
+    }
+    toast.success(`Đã thêm thành công món "${itemName}"${itemIngredientsCount > 0 ? ` (${itemIngredientsCount} nguyên liệu)` : ''}`);
+  };
+
+  const addBulkMenuItems = async () => {
+    if (!bulkText.trim()) return;
+    const lines = bulkText.split('\n');
+    const parsedItems: Array<{
+      name: string;
+      price: string;
+      category: string;
+    }> = [];
+
+    for (const line of lines) {
+      if (!line.trim()) continue;
+      // Accept both comma and dash separators
+      const parts = line.includes(',') ? line.split(',') : line.split('-');
+      if (parts.length < 2) continue;
+      
+      const name = parts[0].trim();
+      const price = parts[1].trim().replace(/[^0-9]/g, '');
+      const category = parts[2] ? parts[2].trim() : (itemForm.category || categories[0] || 'Đồ uống');
+      
+      if (name && price) {
+        parsedItems.push({ name, price, category });
+      }
+    }
+
+    if (parsedItems.length === 0) {
+      toast.error('Không tìm thấy món hợp lệ! Định dạng: Tên món, Giá, Danh mục (VD: Cà phê sữa, 25000, Cà phê)');
+      return;
+    }
+
+    try {
+      await database.write(async () => {
+        for (const item of parsedItems) {
+          const menuItemId = generateId();
+          await database.get<MenuItem>('menu_items').create((m: any) => {
+            m._raw.id = menuItemId;
+            m.name = item.name;
+            m.price = item.price;
+            m.category = item.category;
+            m.unit = '';
+            m.defaultDiscount = '0';
+            m.discountStart = 0;
+            m.discountEnd = 0;
+            m.isActive = true;
+            m.image = '';
+          });
+        }
+      });
+      
+      toast.success(`Đã thêm hàng loạt thành công ${parsedItems.length} món ăn vào thực đơn!`);
+      setShowAddItem(false);
+      setBulkText('');
+    } catch (e: any) {
+      toast.error('Có lỗi xảy ra khi lưu thực đơn: ' + e.message);
+    }
   };
 
   const updateMenuItem = async () => {
@@ -1119,151 +1197,230 @@ function MenuConfig({ units }: { units: string[] }) {
       {showAddItem && (
         <Modal title="Thêm món vào menu" onClose={() => setShowAddItem(false)}>
           <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-1">
-            <Input label="Tên món" value={itemForm.name}
-              onChange={(e: any) => setItemForm({ ...itemForm, name: e.target.value })} placeholder="VD: Cà phê sữa đá..." />
-            <Input label="Giá bán" type="number" value={itemForm.price}
-              onChange={(e: any) => setItemForm({ ...itemForm, price: e.target.value })} placeholder="25000" />
-            
-            {/* Hình ảnh món ăn */}
-            <div className="space-y-1.5 p-3.5 bg-surface-zen/20 border border-surface-zen/40 rounded-xl">
-              <label className="text-xs text-text-secondary font-semibold block">Hình ảnh món ăn</label>
-              <div className="flex items-center space-x-3">
-                <div className="w-14 h-14 rounded-xl border border-surface-zen flex items-center justify-center bg-white overflow-hidden flex-shrink-0">
-                  {itemForm.image ? (
-                    <img src={itemForm.image} alt="Preview" className="w-full h-full object-cover" />
-                  ) : (
-                    <span className="text-text-secondary text-[9px] text-center px-1 font-medium leading-tight">Chưa có ảnh</span>
-                  )}
-                </div>
-                <div className="flex-1 flex flex-col space-y-1">
-                  <input type="file" accept="image/*" id="dish-image-upload-add" className="hidden"
-                    onChange={(e: any) => {
-                      const file = e.target.files?.[0];
-                      if (file) {
-                        const reader = new FileReader();
-                        reader.onloadend = () => {
-                          setItemForm({ ...itemForm, image: reader.result as string });
-                        };
-                        reader.readAsDataURL(file);
-                      }
-                    }} />
-                  <div className="flex space-x-2">
-                    <label htmlFor="dish-image-upload-add"
-                      className="px-2.5 py-1.5 bg-primary/10 text-primary rounded-lg text-xs font-bold hover:bg-primary/20 transition-all cursor-pointer">
-                      Chọn ảnh
-                    </label>
-                    {itemForm.image && (
-                      <button onClick={() => setItemForm({ ...itemForm, image: '' })}
-                        className="px-2.5 py-1.5 bg-error-zen/10 text-error-zen rounded-lg text-xs font-bold hover:bg-error-zen/20 transition-all">
-                        Xóa ảnh
-                      </button>
-                    )}
-                  </div>
-                  <p className="text-[9px] text-text-secondary">Hỗ trợ JPG, PNG. Lưu ngoại tuyến trực tiếp.</p>
-                </div>
-              </div>
-            </div>
-            
-            <Select label="Danh mục" value={itemForm.category}
-              onChange={(e: any) => setItemForm({ ...itemForm, category: e.target.value })}
-              options={categories.map(c => ({ value: c, label: c }))} />
-
-            {/* Khung giảm giá riêng biệt */}
-            <div className="p-4 bg-amber-50/30 border border-amber-100 rounded-xl space-y-3">
-              <p className="text-xs font-bold text-amber-800 uppercase tracking-wider flex items-center gap-1.5">
-                <span>🎁 Thiết lập giảm giá & Khuyến mãi</span>
-              </p>
-              <Input label="Giảm giá mặc định (%)" type="number" value={itemForm.defaultDiscount}
-                onChange={(e: any) => setItemForm({ ...itemForm, defaultDiscount: e.target.value })} placeholder="0" />
-              <div className="space-y-1.5 border-t border-amber-100/50 pt-2.5">
-                <p className="text-xs font-medium text-amber-900/80">Lịch giảm giá (để trống nếu không có thời hạn)</p>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-[11px] text-text-secondary font-medium block mb-1">Bắt đầu</label>
-                    <input type="datetime-local" value={itemForm.discountStart}
-                      onChange={(e: any) => setItemForm({ ...itemForm, discountStart: e.target.value })}
-                      className="w-full px-3 py-2 bg-white border border-surface-zen rounded-lg text-sm focus:ring-2 focus:ring-primary/30 outline-none" />
-                  </div>
-                  <div>
-                    <label className="text-[11px] text-text-secondary font-medium block mb-1">Kết thúc</label>
-                    <input type="datetime-local" value={itemForm.discountEnd}
-                      onChange={(e: any) => setItemForm({ ...itemForm, discountEnd: e.target.value })}
-                      className="w-full px-3 py-2 bg-white border border-surface-zen rounded-lg text-sm focus:ring-2 focus:ring-primary/30 outline-none" />
-                  </div>
-                </div>
-              </div>
+            {/* Tab Selector */}
+            <div className="flex bg-surface-zen p-1 rounded-xl border border-surface-zen/60 mb-2">
+              <button onClick={() => setAddMode('single')}
+                className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${addMode === 'single' ? 'bg-white text-primary shadow-sm' : 'text-text-secondary hover:text-primary'}`}>
+                Thêm 1 món
+              </button>
+              <button onClick={() => setAddMode('bulk')}
+                className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${addMode === 'bulk' ? 'bg-white text-primary shadow-sm' : 'text-text-secondary hover:text-primary'}`}>
+                Thêm hàng loạt (Nhanh)
+              </button>
             </div>
 
-            {/* ===== Nguyên liệu ===== */}
-            <div className="border-t pt-4">
-              <p className="text-sm font-bold text-primary-dark mb-2">Nguyên liệu định lượng (BOM):</p>
-              
-              {/* Danh sách nguyên liệu đã thêm */}
-              {pendingIngredients.length > 0 && (
-                <div className="space-y-1.5 mb-3">
-                  {pendingIngredients.map((ing, idx) => (
-                    <div key={idx} className="flex items-center justify-between bg-surface-zen p-2.5 rounded-lg border border-surface-zen/60">
-                      <div className="flex items-center space-x-2">
-                        <span className="text-xs bg-primary/10 text-primary rounded-full w-5 h-5 flex items-center justify-center font-bold">{idx + 1}</span>
-                        <span className="font-medium text-sm">{ing.materialName}</span>
-                        <span className="text-xs text-text-secondary">({ing.quantity} {ing.unit})</span>
-                      </div>
-                      <button onClick={() => setPendingIngredients(pendingIngredients.filter((_, i) => i !== idx))}
-                        className="text-error-zen hover:text-error-zen/80 p-1">
-                        <Trash2 size={14} />
-                      </button>
+            {addMode === 'single' ? (
+              <>
+                <Input label="Tên món" value={itemForm.name}
+                  onChange={(e: any) => setItemForm({ ...itemForm, name: e.target.value })} placeholder="VD: Cà phê sữa đá..." />
+                <Input label="Giá bán" type="number" value={itemForm.price}
+                  onChange={(e: any) => setItemForm({ ...itemForm, price: e.target.value })} placeholder="25000" />
+                
+                {/* Hình ảnh món ăn */}
+                <div className="space-y-1.5 p-3.5 bg-surface-zen/20 border border-surface-zen/40 rounded-xl">
+                  <label className="text-xs text-text-secondary font-semibold block">Hình ảnh món ăn</label>
+                  <div className="flex items-center space-x-3">
+                    <div className="w-14 h-14 rounded-xl border border-surface-zen flex items-center justify-center bg-white overflow-hidden flex-shrink-0">
+                      {itemForm.image ? (
+                        <img src={itemForm.image} alt="Preview" className="w-full h-full object-cover" />
+                      ) : (
+                        <span className="text-text-secondary text-[9px] text-center px-1 font-medium leading-tight">Chưa có ảnh</span>
+                      )}
                     </div>
-                  ))}
+                    <div className="flex-1 flex flex-col space-y-1">
+                      <input type="file" accept="image/*" id="dish-image-upload-add" className="hidden"
+                        onChange={(e: any) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            const reader = new FileReader();
+                            reader.onloadend = () => {
+                              setItemForm({ ...itemForm, image: reader.result as string });
+                            };
+                            reader.readAsDataURL(file);
+                          }
+                        }} />
+                      <div className="flex space-x-2">
+                        <label htmlFor="dish-image-upload-add"
+                          className="px-2.5 py-1.5 bg-primary/10 text-primary rounded-lg text-xs font-bold hover:bg-primary/20 transition-all cursor-pointer">
+                          Chọn ảnh
+                        </label>
+                        {itemForm.image && (
+                          <button onClick={() => setItemForm({ ...itemForm, image: '' })}
+                            className="px-2.5 py-1.5 bg-error-zen/10 text-error-zen rounded-lg text-xs font-bold hover:bg-error-zen/20 transition-all">
+                            Xóa ảnh
+                          </button>
+                        )}
+                      </div>
+                      <p className="text-[9px] text-text-secondary">Hỗ trợ JPG, PNG. Lưu ngoại tuyến trực tiếp.</p>
+                    </div>
+                  </div>
                 </div>
-              )}
-              {pendingIngredients.length === 0 && (
-                <p className="text-xs text-gray-400 italic mb-2">Món này chưa có nguyên liệu nào. Thêm nguyên liệu bên dưới để tự động trừ kho khi bán.</p>
-              )}
+                
+                <Select label="Danh mục" value={itemForm.category}
+                  onChange={(e: any) => setItemForm({ ...itemForm, category: e.target.value })}
+                  options={categories.map(c => ({ value: c, label: c }))} />
 
-              {/* Form thêm nguyên liệu */}
-              <div className="space-y-2 bg-surface-zen/50 p-3 rounded-lg border border-surface-zen/60">
-                <Select label="Chọn nguyên liệu" value={ingredientForm.materialId}
-                  onChange={(e: any) => {
-                    const mat = rawMaterials.find((m: any) => m.id === e.target.value);
-                    setIngredientForm({
-                      materialId: e.target.value,
-                      materialName: mat?.name || '',
-                      quantity: '1',
-                      unit: mat?.unit || '',
-                    });
-                  }}
-                  options={rawMaterials.map((m: any) => ({ value: m.id, label: `${m.name} (${m.unit})` }))} />
-                <div className="grid grid-cols-2 gap-2">
-                  <Input label="Số lượng" type="number" value={ingredientForm.quantity}
-                    onChange={(e: any) => setIngredientForm({ ...ingredientForm, quantity: e.target.value })} />
-                  <Input label="Đơn vị" value={ingredientForm.unit}
-                    onChange={(e: any) => setIngredientForm({ ...ingredientForm, unit: e.target.value })} />
+                {/* Khung giảm giá riêng biệt */}
+                <div className="p-4 bg-amber-50/30 border border-amber-100 rounded-xl space-y-3">
+                  <p className="text-xs font-bold text-amber-800 uppercase tracking-wider flex items-center gap-1.5">
+                    <span>🎁 Thiết lập giảm giá & Khuyến mãi</span>
+                  </p>
+                  <Input label="Giảm giá mặc định (%)" type="number" value={itemForm.defaultDiscount}
+                    onChange={(e: any) => setItemForm({ ...itemForm, defaultDiscount: e.target.value })} placeholder="0" />
+                  <div className="space-y-1.5 border-t border-amber-100/50 pt-2.5">
+                    <p className="text-xs font-medium text-amber-900/80">Lịch giảm giá (để trống nếu không có thời hạn)</p>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-[11px] text-text-secondary font-medium block mb-1">Bắt đầu</label>
+                        <input type="datetime-local" value={itemForm.discountStart}
+                          onChange={(e: any) => setItemForm({ ...itemForm, discountStart: e.target.value })}
+                          className="w-full px-3 py-2 bg-white border border-surface-zen rounded-lg text-sm focus:ring-2 focus:ring-primary/30 outline-none" />
+                      </div>
+                      <div>
+                        <label className="text-[11px] text-text-secondary font-medium block mb-1">Kết thúc</label>
+                        <input type="datetime-local" value={itemForm.discountEnd}
+                          onChange={(e: any) => setItemForm({ ...itemForm, discountEnd: e.target.value })}
+                          className="w-full px-3 py-2 bg-white border border-surface-zen rounded-lg text-sm focus:ring-2 focus:ring-primary/30 outline-none" />
+                      </div>
+                    </div>
+                  </div>
                 </div>
-                <button onClick={() => {
-                  if (!ingredientForm.materialId) return;
-                  if (pendingIngredients.some(i => i.materialId === ingredientForm.materialId)) {
-                    toast.error('Nguyên liệu này đã được thêm!');
-                    return;
-                  }
-                  const mat = rawMaterials.find((m: any) => m.id === ingredientForm.materialId);
-                  setPendingIngredients([...pendingIngredients, {
-                    materialId: ingredientForm.materialId,
-                    materialName: mat?.name || ingredientForm.materialName,
-                    quantity: ingredientForm.quantity,
-                    unit: ingredientForm.unit || mat?.unit || '',
-                  }]);
-                  setIngredientForm({ materialId: '', materialName: '', quantity: '1', unit: '' });
-                }} disabled={!ingredientForm.materialId}
-                  className="w-full py-2 bg-primary/10 text-primary rounded-lg text-sm font-medium hover:bg-primary/20 transition-all disabled:opacity-50 flex items-center justify-center space-x-1">
-                  <Plus size={14} /><span>Thêm nguyên liệu</span>
+
+                {/* ===== Nguyên liệu ===== */}
+                <div className="border-t pt-4">
+                  <p className="text-sm font-bold text-primary-dark mb-2">Nguyên liệu định lượng (BOM):</p>
+                  
+                  {/* Danh sách nguyên liệu đã thêm */}
+                  {pendingIngredients.length > 0 && (
+                    <div className="space-y-1.5 mb-3">
+                      {pendingIngredients.map((ing, idx) => (
+                        <div key={idx} className="flex items-center justify-between bg-surface-zen p-2.5 rounded-lg border border-surface-zen/60">
+                          <div className="flex items-center space-x-2">
+                            <span className="text-xs bg-primary/10 text-primary rounded-full w-5 h-5 flex items-center justify-center font-bold">{idx + 1}</span>
+                            <span className="font-medium text-sm">{ing.materialName}</span>
+                            <span className="text-xs text-text-secondary">({ing.quantity} {ing.unit})</span>
+                          </div>
+                          <button onClick={() => setPendingIngredients(pendingIngredients.filter((_, i) => i !== idx))}
+                            className="text-error-zen hover:text-error-zen/80 p-1">
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {pendingIngredients.length === 0 && (
+                    <p className="text-xs text-gray-400 italic mb-2">Món này chưa có nguyên liệu nào. Thêm nguyên liệu bên dưới để tự động trừ kho khi bán.</p>
+                  )}
+
+                  {/* Form thêm nguyên liệu */}
+                  <div className="space-y-2 bg-surface-zen/50 p-3 rounded-lg border border-surface-zen/60">
+                    <Select label="Chọn nguyên liệu" value={ingredientForm.materialId}
+                      onChange={(e: any) => {
+                        const mat = rawMaterials.find((m: any) => m.id === e.target.value);
+                        setIngredientForm({
+                          materialId: e.target.value,
+                          materialName: mat?.name || '',
+                          quantity: '1',
+                          unit: mat?.unit || '',
+                        });
+                      }}
+                      options={rawMaterials.map((m: any) => ({ value: m.id, label: `${m.name} (${m.unit})` }))} />
+                    <div className="grid grid-cols-2 gap-2">
+                      <Input label="Số lượng" type="number" value={ingredientForm.quantity}
+                        onChange={(e: any) => setIngredientForm({ ...ingredientForm, quantity: e.target.value })} />
+                      <Input label="Đơn vị" value={ingredientForm.unit}
+                        onChange={(e: any) => setIngredientForm({ ...ingredientForm, unit: e.target.value })} />
+                    </div>
+                    <button onClick={() => {
+                      if (!ingredientForm.materialId) return;
+                      if (pendingIngredients.some(i => i.materialId === ingredientForm.materialId)) {
+                        toast.error('Nguyên liệu này đã được thêm!');
+                        return;
+                      }
+                      const mat = rawMaterials.find((m: any) => m.id === ingredientForm.materialId);
+                      setPendingIngredients([...pendingIngredients, {
+                        materialId: ingredientForm.materialId,
+                        materialName: mat?.name || ingredientForm.materialName,
+                        quantity: ingredientForm.quantity,
+                        unit: ingredientForm.unit || mat?.unit || '',
+                      }]);
+                      setIngredientForm({ materialId: '', materialName: '', quantity: '1', unit: '' });
+                    }} disabled={!ingredientForm.materialId}
+                      className="w-full py-2 bg-primary/10 text-primary rounded-lg text-sm font-medium hover:bg-primary/20 transition-all disabled:opacity-50 flex items-center justify-center space-x-1">
+                      <Plus size={14} /><span>Thêm nguyên liệu</span>
+                    </button>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3 mt-4 pt-3 border-t">
+                  <button onClick={() => addMenuItem(true)} disabled={!itemForm.name || !itemForm.price}
+                    className="py-3 bg-primary/10 text-primary border border-primary/20 rounded-xl font-bold hover:bg-primary/20 transition-all disabled:opacity-50 text-xs">
+                    Lưu & Thêm tiếp
+                  </button>
+                  <button onClick={() => addMenuItem(false)} disabled={!itemForm.name || !itemForm.price}
+                    className="py-3 bg-accent text-white rounded-xl font-bold hover:bg-primary-dark transition-all disabled:opacity-50 text-xs">
+                    Lưu & Đóng
+                  </button>
+                </div>
+              </>
+            ) : (
+              <div className="space-y-4">
+                <div className="bg-primary/5 p-3 rounded-xl border border-primary/10 space-y-1">
+                  <p className="text-[11px] font-bold text-primary">💡 Định dạng nhập hàng loạt:</p>
+                  <p className="text-[10px] text-text-secondary leading-relaxed">
+                    Nhập mỗi món trên một dòng theo định dạng:<br />
+                    <code className="bg-white px-1 py-0.5 rounded border font-mono">Tên món, Giá bán, Danh mục</code><br />
+                    VD:<br />
+                    <code className="bg-white px-1 py-0.5 rounded border font-mono">Cà phê sữa đá, 25000, Cà phê</code><br />
+                    <code className="bg-white px-1 py-0.5 rounded border font-mono">Cà phê đen, 20000, Cà phê</code><br />
+                    <code className="bg-white px-1 py-0.5 rounded border font-mono">Trà đào cam sả, 35000, Trà trái cây</code>
+                  </p>
+                </div>
+                <div>
+                  <label className="text-xs text-text-secondary font-bold block mb-1.5">Danh sách thực đơn</label>
+                  <textarea value={bulkText} onChange={(e) => setBulkText(e.target.value)}
+                    placeholder="VD:&#10;Cà phê đen, 20000, Cà phê&#10;Trà sữa trân châu, 35000, Trà sữa..."
+                    rows={8}
+                    className="w-full p-3 bg-white border border-surface-zen rounded-xl text-sm focus:ring-2 focus:ring-primary/30 outline-none font-mono placeholder:text-gray-300" />
+                </div>
+
+                {/* Live Preview Grid */}
+                {bulkText.trim() && (
+                  <div className="border rounded-xl overflow-hidden bg-white max-h-48 overflow-y-auto">
+                    <table className="w-full text-xs">
+                      <thead className="bg-surface-zen sticky top-0">
+                        <tr>
+                          <th className="p-2 text-left text-text-secondary font-medium">Tên món</th>
+                          <th className="p-2 text-left text-text-secondary font-medium">Giá bán</th>
+                          <th className="p-2 text-left text-text-secondary font-medium">Danh mục</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {bulkText.split('\n').filter(l => l.trim()).map((line, idx) => {
+                          const parts = line.includes(',') ? line.split(',') : line.split('-');
+                          const name = parts[0]?.trim() || '';
+                          const price = parts[1]?.trim().replace(/[^0-9]/g, '') || '';
+                          const category = parts[2]?.trim() || itemForm.category || 'Đồ uống';
+                          if (!name && !price) return null;
+                          return (
+                            <tr key={idx} className="border-t hover:bg-surface-zen/30">
+                              <td className="p-2 font-medium">{name || <span className="text-error-zen italic">Thiếu tên</span>}</td>
+                              <td className="p-2 font-bold text-accent">{price ? parseInt(price).toLocaleString() + 'đ' : <span className="text-error-zen italic">Thiếu giá</span>}</td>
+                              <td className="p-2 text-text-secondary">{category}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+
+                <button onClick={addBulkMenuItems} disabled={!bulkText.trim()}
+                  className="w-full py-3 bg-accent text-white rounded-xl font-bold hover:bg-primary-dark transition-all disabled:opacity-50">
+                  Xác nhận thêm hàng loạt
                 </button>
               </div>
-            </div>
-
-            <button onClick={addMenuItem} disabled={!itemForm.name || !itemForm.price}
-              className="w-full py-3 bg-accent text-white rounded-xl font-medium hover:bg-primary-dark transition-all disabled:opacity-50">
-              Thêm món{pendingIngredients.length > 0 ? ` (${pendingIngredients.length} nguyên liệu)` : ''}
-            </button>
+            )}
           </div>
         </Modal>
       )}
