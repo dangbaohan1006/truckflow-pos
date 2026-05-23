@@ -815,6 +815,8 @@ function MenuConfig({ units }: { units: string[] }) {
   const [categories, setCategories] = useState<string[]>(getSavedCategories);
   const [showCategoryModal, setShowCategoryModal] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState('');
+  const [editingCategory, setEditingCategory] = useState<string | null>(null);
+  const [editingCategoryValue, setEditingCategoryValue] = useState('');
 
   const [itemForm, setItemForm] = useState({
     name: '', price: '', category: getSavedCategories()[0] || 'Đồ uống', unit: '',
@@ -1417,26 +1419,87 @@ function MenuConfig({ units }: { units: string[] }) {
                 {categories.map((cat) => {
                   const itemCount = menuItems.filter((item: any) => item.category === cat).length;
                   return (
-                    <div key={cat} className="flex justify-between items-center px-4 py-2.5 hover:bg-surface-zen/20 transition-all">
-                      <div className="flex flex-col">
-                        <span className="font-medium text-sm text-primary-dark">{cat}</span>
-                        <span className="text-[10px] text-text-secondary">{itemCount} món ăn</span>
-                      </div>
-                      <button onClick={() => {
-                        if (itemCount > 0) {
-                          if (!confirm(`Danh mục "${cat}" đang có ${itemCount} món ăn hoạt động. Xóa danh mục có thể khiến các món này hiển thị sai danh mục. Bạn chắc chắn muốn xóa?`)) return;
-                        } else {
-                          if (!confirm(`Xóa danh mục "${cat}"?`)) return;
-                        }
-                        const updated = categories.filter(c => c !== cat);
-                        setCategories(updated);
-                        localStorage.setItem('truckflow_categories', JSON.stringify(updated));
-                        toast.success(`Đã xóa danh mục "${cat}"`);
-                      }}
-                        className="p-1 text-text-secondary hover:text-error-zen hover:bg-error-zen/10 rounded transition-all"
-                        title="Xóa danh mục">
-                        <Trash2 size={14} />
-                      </button>
+                    <div key={cat} className="flex justify-between items-center px-4 py-2.5 hover:bg-surface-zen/20 transition-all min-h-[52px]">
+                      {editingCategory === cat ? (
+                        <div className="flex-1 flex items-center space-x-2 mr-2">
+                          <input type="text" value={editingCategoryValue}
+                            onChange={(e) => setEditingCategoryValue(e.target.value)}
+                            className="flex-1 px-2.5 py-1 border border-surface-zen rounded text-sm outline-none focus:ring-1 focus:ring-primary/50" />
+                          <button onClick={async () => {
+                            const trimmed = editingCategoryValue.trim();
+                            if (!trimmed) return;
+                            if (trimmed === cat) {
+                              setEditingCategory(null);
+                              return;
+                            }
+                            if (categories.some(c => c !== cat && c.toLowerCase() === trimmed.toLowerCase())) {
+                              toast.error('Tên danh mục này đã tồn tại!');
+                              return;
+                            }
+                            
+                            // Update categories list in state & localStorage
+                            const updated = categories.map(c => c === cat ? trimmed : c);
+                            setCategories(updated);
+                            localStorage.setItem('truckflow_categories', JSON.stringify(updated));
+
+                            // Also update all menu items in database with old category to new category!
+                            const itemsToUpdate = menuItems.filter((item: any) => item.category === cat);
+                            if (itemsToUpdate.length > 0) {
+                              await database.write(async () => {
+                                for (const item of itemsToUpdate) {
+                                  const record = await database.get<MenuItem>('menu_items').find(item.id);
+                                  await record.update((m: any) => {
+                                    m.category = trimmed;
+                                  });
+                                }
+                              });
+                              toast.success(`Đã đổi tên danh mục và cập nhật ${itemsToUpdate.length} món ăn!`);
+                            } else {
+                              toast.success(`Đã đổi tên danh mục thành "${trimmed}"`);
+                            }
+                            setEditingCategory(null);
+                          }}
+                            className="px-2.5 py-1 bg-green-600 hover:bg-green-700 text-white rounded text-xs font-medium transition-all">
+                            Lưu
+                          </button>
+                          <button onClick={() => setEditingCategory(null)}
+                            className="px-2.5 py-1 bg-gray-100 hover:bg-gray-200 text-text-secondary rounded text-xs font-medium transition-all">
+                            Hủy
+                          </button>
+                        </div>
+                      ) : (
+                        <>
+                          <div className="flex flex-col">
+                            <span className="font-medium text-sm text-primary-dark">{cat}</span>
+                            <span className="text-[10px] text-text-secondary">{itemCount} món ăn</span>
+                          </div>
+                          <div className="flex items-center space-x-1">
+                            <button onClick={() => {
+                              setEditingCategory(cat);
+                              setEditingCategoryValue(cat);
+                            }}
+                              className="p-1 text-text-secondary hover:text-primary hover:bg-primary/10 rounded transition-all"
+                              title="Sửa tên danh mục">
+                              <Edit3 size={14} />
+                            </button>
+                            <button onClick={() => {
+                              if (itemCount > 0) {
+                                if (!confirm(`Danh mục "${cat}" đang có ${itemCount} món ăn hoạt động. Xóa danh mục có thể khiến các món này hiển thị sai danh mục. Bạn chắc chắn muốn xóa?`)) return;
+                              } else {
+                                if (!confirm(`Xóa danh mục "${cat}"?`)) return;
+                              }
+                              const updated = categories.filter(c => c !== cat);
+                              setCategories(updated);
+                              localStorage.setItem('truckflow_categories', JSON.stringify(updated));
+                              toast.success(`Đã xóa danh mục "${cat}"`);
+                            }}
+                              className="p-1 text-text-secondary hover:text-error-zen hover:bg-error-zen/10 rounded transition-all"
+                              title="Xóa danh mục">
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+                        </>
+                      )}
                     </div>
                   );
                 })}
