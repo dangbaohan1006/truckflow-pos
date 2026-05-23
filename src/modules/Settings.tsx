@@ -803,7 +803,7 @@ function MenuConfig({ units }: { units: string[] }) {
   const [searchTerm, setSearchTerm] = useState('');
 
   const [itemForm, setItemForm] = useState({
-    name: '', price: '', category: 'Đồ uống', unit: units[0] || 'Ly',
+    name: '', price: '', category: 'Đồ uống', unit: '',
     defaultDiscount: '0', discountStart: '', discountEnd: '', isActive: true,
   });
 
@@ -847,7 +847,7 @@ function MenuConfig({ units }: { units: string[] }) {
         m.name = itemForm.name;
         m.price = itemForm.price;
         m.category = itemForm.category;
-        m.unit = itemForm.unit;
+        m.unit = '';
         m.defaultDiscount = itemForm.defaultDiscount;
         m.discountStart = discountStart;
         m.discountEnd = discountEnd;
@@ -867,7 +867,7 @@ function MenuConfig({ units }: { units: string[] }) {
     });
     setShowAddItem(false);
     setPendingIngredients([]);
-    setItemForm({ name: '', price: '', category: 'Đồ uống', unit: 'ly', defaultDiscount: '0', discountStart: '', discountEnd: '', isActive: true });
+    setItemForm({ name: '', price: '', category: 'Đồ uống', unit: '', defaultDiscount: '0', discountStart: '', discountEnd: '', isActive: true });
     toast.success(`Đã thêm món "${itemForm.name}" vào menu với ${pendingIngredients.length} nguyên liệu`);
   };
 
@@ -881,15 +881,51 @@ function MenuConfig({ units }: { units: string[] }) {
         m.name = showEditItem.name;
         m.price = showEditItem.price;
         m.category = showEditItem.category;
-        m.unit = showEditItem.unit;
+        m.unit = '';
         m.defaultDiscount = showEditItem.defaultDiscount;
         m.discountStart = discountStart;
         m.discountEnd = discountEnd;
         m.isActive = showEditItem.isActive;
       });
+
+      // Synchronize ingredients directly in edit mode
+      const existingDbIngs = menuIngredients.filter((i: any) => i.menuItemId === showEditItem.id);
+      
+      // Delete ones that are no longer in editPendingIngredients
+      for (const dbIng of existingDbIngs) {
+        const stillExists = editPendingIngredients.some(pi => pi.materialId === dbIng.materialId);
+        if (!stillExists) {
+          const dbRecord = await database.get<MenuIngredient>('menu_ingredients').find(dbIng.id);
+          await dbRecord.destroyPermanently();
+        }
+      }
+
+      // Add or update ones in editPendingIngredients
+      for (const pi of editPendingIngredients) {
+        const dbIng = existingDbIngs.find(di => di.materialId === pi.materialId);
+        if (dbIng) {
+          if (dbIng.quantity !== pi.quantity || dbIng.unit !== pi.unit) {
+            const dbRecord = await database.get<MenuIngredient>('menu_ingredients').find(dbIng.id);
+            await dbRecord.update((r: any) => {
+              r.quantity = pi.quantity;
+              r.unit = pi.unit;
+            });
+          }
+        } else {
+          await database.get<MenuIngredient>('menu_ingredients').create((r: any) => {
+            r._raw.id = generateId();
+            r.menuItemId = showEditItem.id;
+            r.materialId = pi.materialId;
+            r.materialName = pi.materialName;
+            r.quantity = pi.quantity;
+            r.unit = pi.unit;
+          });
+        }
+      }
     });
     setShowEditItem(null);
-    toast.success(`Đã cập nhật món "${showEditItem.name}"`);
+    setEditPendingIngredients([]);
+    toast.success(`Đã cập nhật món "${showEditItem.name}" và đồng bộ nguyên liệu thành công`);
   };
 
   const deleteMenuItem = async (id: string) => {
@@ -1005,14 +1041,24 @@ function MenuConfig({ units }: { units: string[] }) {
                   </td>
                   <td className="p-4 text-right">
                     <div className="flex items-center justify-end space-x-1">
-                      <button onClick={() => setShowEditItem({
-                        id: item.id, name: item.name, price: item.price,
-                        category: item.category, unit: item.unit,
-                        defaultDiscount: item.defaultDiscount,
-                        discountStart: item.discountStart > 0 ? new Date(item.discountStart).toISOString().slice(0, 16) : '',
-                        discountEnd: item.discountEnd > 0 ? new Date(item.discountEnd).toISOString().slice(0, 16) : '',
-                        isActive: item.isActive,
-                      })}
+                      <button onClick={() => {
+                        setShowEditItem({
+                          id: item.id, name: item.name, price: item.price,
+                          category: item.category, unit: item.unit,
+                          defaultDiscount: item.defaultDiscount,
+                          discountStart: item.discountStart > 0 ? new Date(item.discountStart).toISOString().slice(0, 16) : '',
+                          discountEnd: item.discountEnd > 0 ? new Date(item.discountEnd).toISOString().slice(0, 16) : '',
+                          isActive: item.isActive,
+                        });
+                        // Load ingredients into editPendingIngredients state
+                        const currentIngs = getIngredientsForItem(item.id).map((ing: any) => ({
+                          materialId: ing.materialId,
+                          materialName: ing.materialName,
+                          quantity: ing.quantity,
+                          unit: ing.unit,
+                        }));
+                        setEditPendingIngredients(currentIngs);
+                      }}
                         className="p-2 text-text-secondary hover:text-primary hover:bg-primary/10 rounded-lg transition-all" title="Sửa">
                         <Edit3 size={15} />
                       </button>
@@ -1035,60 +1081,63 @@ function MenuConfig({ units }: { units: string[] }) {
       {/* Add Menu Item Modal */}
       {showAddItem && (
         <Modal title="Thêm món vào menu" onClose={() => setShowAddItem(false)}>
-          <div className="space-y-3 max-h-[70vh] overflow-y-auto pr-1">
+          <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-1">
             <Input label="Tên món" value={itemForm.name}
               onChange={(e: any) => setItemForm({ ...itemForm, name: e.target.value })} placeholder="VD: Cà phê sữa đá..." />
             <Input label="Giá bán" type="number" value={itemForm.price}
               onChange={(e: any) => setItemForm({ ...itemForm, price: e.target.value })} placeholder="25000" />
-            <div className="grid grid-cols-2 gap-3">
-              <Select label="Danh mục" value={itemForm.category}
-                onChange={(e: any) => setItemForm({ ...itemForm, category: e.target.value })}
-                options={[
-                  { value: 'Đồ uống', label: 'Đồ uống' },
-                  { value: 'Đồ ăn', label: 'Đồ ăn' },
-                  { value: 'Tráng miệng', label: 'Tráng miệng' },
-                  { value: 'Khác', label: 'Khác' },
-                ]} />
-              <Select label="Đơn vị" value={itemForm.unit}
-                onChange={(e: any) => setItemForm({ ...itemForm, unit: e.target.value })}
-                options={units.map(u => ({ value: u, label: u }))} />
-            </div>
-            <Input label="Giảm giá mặc định (%)" type="number" value={itemForm.defaultDiscount}
-              onChange={(e: any) => setItemForm({ ...itemForm, defaultDiscount: e.target.value })} placeholder="0" />
-            <div className="border-t pt-3">
-              <p className="text-sm font-medium text-text-secondary mb-2">Lịch giảm giá (để trống nếu không có thời hạn)</p>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs text-text-secondary font-medium block mb-1">Bắt đầu</label>
-                  <input type="datetime-local" value={itemForm.discountStart}
-                    onChange={(e: any) => setItemForm({ ...itemForm, discountStart: e.target.value })}
-                    className="w-full px-3 py-2 border border-surface-zen rounded-lg text-sm focus:ring-2 focus:ring-primary/30 outline-none" />
-                </div>
-                <div>
-                  <label className="text-xs text-text-secondary font-medium block mb-1">Kết thúc</label>
-                  <input type="datetime-local" value={itemForm.discountEnd}
-                    onChange={(e: any) => setItemForm({ ...itemForm, discountEnd: e.target.value })}
-                    className="w-full px-3 py-2 border border-surface-zen rounded-lg text-sm focus:ring-2 focus:ring-primary/30 outline-none" />
+            
+            <Select label="Danh mục" value={itemForm.category}
+              onChange={(e: any) => setItemForm({ ...itemForm, category: e.target.value })}
+              options={[
+                { value: 'Đồ uống', label: 'Đồ uống' },
+                { value: 'Đồ ăn', label: 'Đồ ăn' },
+                { value: 'Tráng miệng', label: 'Tráng miệng' },
+                { value: 'Khác', label: 'Khác' },
+              ]} />
+
+            {/* Khung giảm giá riêng biệt */}
+            <div className="p-4 bg-amber-50/30 border border-amber-100 rounded-xl space-y-3">
+              <p className="text-xs font-bold text-amber-800 uppercase tracking-wider flex items-center gap-1.5">
+                <span>🎁 Thiết lập giảm giá & Khuyến mãi</span>
+              </p>
+              <Input label="Giảm giá mặc định (%)" type="number" value={itemForm.defaultDiscount}
+                onChange={(e: any) => setItemForm({ ...itemForm, defaultDiscount: e.target.value })} placeholder="0" />
+              <div className="space-y-1.5 border-t border-amber-100/50 pt-2.5">
+                <p className="text-xs font-medium text-amber-900/80">Lịch giảm giá (để trống nếu không có thời hạn)</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-[11px] text-text-secondary font-medium block mb-1">Bắt đầu</label>
+                    <input type="datetime-local" value={itemForm.discountStart}
+                      onChange={(e: any) => setItemForm({ ...itemForm, discountStart: e.target.value })}
+                      className="w-full px-3 py-2 bg-white border border-surface-zen rounded-lg text-sm focus:ring-2 focus:ring-primary/30 outline-none" />
+                  </div>
+                  <div>
+                    <label className="text-[11px] text-text-secondary font-medium block mb-1">Kết thúc</label>
+                    <input type="datetime-local" value={itemForm.discountEnd}
+                      onChange={(e: any) => setItemForm({ ...itemForm, discountEnd: e.target.value })}
+                      className="w-full px-3 py-2 bg-white border border-surface-zen rounded-lg text-sm focus:ring-2 focus:ring-primary/30 outline-none" />
+                  </div>
                 </div>
               </div>
             </div>
 
             {/* ===== Nguyên liệu ===== */}
-            <div className="border-t pt-3">
-              <p className="text-sm font-medium text-text-secondary mb-2">Nguyên liệu chế biến:</p>
+            <div className="border-t pt-4">
+              <p className="text-sm font-bold text-primary-dark mb-2">Nguyên liệu định lượng (BOM):</p>
               
               {/* Danh sách nguyên liệu đã thêm */}
               {pendingIngredients.length > 0 && (
                 <div className="space-y-1.5 mb-3">
                   {pendingIngredients.map((ing, idx) => (
-                    <div key={idx} className="flex items-center justify-between bg-surface-zen p-2.5 rounded-lg">
+                    <div key={idx} className="flex items-center justify-between bg-surface-zen p-2.5 rounded-lg border border-surface-zen/60">
                       <div className="flex items-center space-x-2">
                         <span className="text-xs bg-primary/10 text-primary rounded-full w-5 h-5 flex items-center justify-center font-bold">{idx + 1}</span>
                         <span className="font-medium text-sm">{ing.materialName}</span>
                         <span className="text-xs text-text-secondary">({ing.quantity} {ing.unit})</span>
                       </div>
                       <button onClick={() => setPendingIngredients(pendingIngredients.filter((_, i) => i !== idx))}
-                        className="text-error-zen/50 hover:text-error-zen p-1">
+                        className="text-error-zen hover:text-error-zen/80 p-1">
                         <Trash2 size={14} />
                       </button>
                     </div>
@@ -1096,11 +1145,11 @@ function MenuConfig({ units }: { units: string[] }) {
                 </div>
               )}
               {pendingIngredients.length === 0 && (
-                <p className="text-xs text-gray-400 italic mb-2">Chưa thêm nguyên liệu nào. Nhấn "Thêm nguyên liệu" bên dưới.</p>
+                <p className="text-xs text-gray-400 italic mb-2">Món này chưa có nguyên liệu nào. Thêm nguyên liệu bên dưới để tự động trừ kho khi bán.</p>
               )}
 
               {/* Form thêm nguyên liệu */}
-              <div className="space-y-2 bg-surface-zen/50 p-3 rounded-lg">
+              <div className="space-y-2 bg-surface-zen/50 p-3 rounded-lg border border-surface-zen/60">
                 <Select label="Chọn nguyên liệu" value={ingredientForm.materialId}
                   onChange={(e: any) => {
                     const mat = rawMaterials.find((m: any) => m.id === e.target.value);
@@ -1120,6 +1169,10 @@ function MenuConfig({ units }: { units: string[] }) {
                 </div>
                 <button onClick={() => {
                   if (!ingredientForm.materialId) return;
+                  if (pendingIngredients.some(i => i.materialId === ingredientForm.materialId)) {
+                    toast.error('Nguyên liệu này đã được thêm!');
+                    return;
+                  }
                   const mat = rawMaterials.find((m: any) => m.id === ingredientForm.materialId);
                   setPendingIngredients([...pendingIngredients, {
                     materialId: ingredientForm.materialId,
@@ -1145,47 +1198,117 @@ function MenuConfig({ units }: { units: string[] }) {
 
       {/* Edit Menu Item Modal */}
       {showEditItem && (
-        <Modal title="Sửa món" onClose={() => setShowEditItem(null)}>
-          <div className="space-y-3">
+        <Modal title="Sửa món" onClose={() => { setShowEditItem(null); setEditPendingIngredients([]); }}>
+          <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-1">
             <Input label="Tên món" value={showEditItem.name}
               onChange={(e: any) => setShowEditItem({ ...showEditItem, name: e.target.value })} />
             <Input label="Giá bán" type="number" value={showEditItem.price}
               onChange={(e: any) => setShowEditItem({ ...showEditItem, price: e.target.value })} />
-            <div className="grid grid-cols-2 gap-3">
-              <Select label="Danh mục" value={showEditItem.category}
-                onChange={(e: any) => setShowEditItem({ ...showEditItem, category: e.target.value })}
-                options={[
-                  { value: 'Đồ uống', label: 'Đồ uống' },
-                  { value: 'Đồ ăn', label: 'Đồ ăn' },
-                  { value: 'Tráng miệng', label: 'Tráng miệng' },
-                  { value: 'Khác', label: 'Khác' },
-                ]} />
-              <Select label="Đơn vị" value={showEditItem.unit}
-                onChange={(e: any) => setShowEditItem({ ...showEditItem, unit: e.target.value })}
-                options={units.map(u => ({ value: u, label: u }))} />
-            </div>
-            <Input label="Giảm giá mặc định (%)" type="number" value={showEditItem.defaultDiscount}
-              onChange={(e: any) => setShowEditItem({ ...showEditItem, defaultDiscount: e.target.value })} />
-            <div className="border-t pt-3">
-              <p className="text-sm font-medium text-text-secondary mb-2">Lịch giảm giá (để trống nếu không có thời hạn)</p>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs text-text-secondary font-medium block mb-1">Bắt đầu</label>
-                  <input type="datetime-local" value={showEditItem.discountStart}
-                    onChange={(e: any) => setShowEditItem({ ...showEditItem, discountStart: e.target.value })}
-                    className="w-full px-3 py-2 border border-surface-zen rounded-lg text-sm focus:ring-2 focus:ring-primary/30 outline-none" />
-                </div>
-                <div>
-                  <label className="text-xs text-text-secondary font-medium block mb-1">Kết thúc</label>
-                  <input type="datetime-local" value={showEditItem.discountEnd}
-                    onChange={(e: any) => setShowEditItem({ ...showEditItem, discountEnd: e.target.value })}
-                    className="w-full px-3 py-2 border border-surface-zen rounded-lg text-sm focus:ring-2 focus:ring-primary/30 outline-none" />
+            
+            <Select label="Danh mục" value={showEditItem.category}
+              onChange={(e: any) => setShowEditItem({ ...showEditItem, category: e.target.value })}
+              options={[
+                { value: 'Đồ uống', label: 'Đồ uống' },
+                { value: 'Đồ ăn', label: 'Đồ ăn' },
+                { value: 'Tráng miệng', label: 'Tráng miệng' },
+                { value: 'Khác', label: 'Khác' },
+              ]} />
+
+            {/* Khung giảm giá riêng biệt */}
+            <div className="p-4 bg-amber-50/30 border border-amber-100 rounded-xl space-y-3">
+              <p className="text-xs font-bold text-amber-800 uppercase tracking-wider flex items-center gap-1.5">
+                <span>🎁 Thiết lập giảm giá & Khuyến mãi</span>
+              </p>
+              <Input label="Giảm giá mặc định (%)" type="number" value={showEditItem.defaultDiscount}
+                onChange={(e: any) => setShowEditItem({ ...showEditItem, defaultDiscount: e.target.value })} />
+              <div className="space-y-1.5 border-t border-amber-100/50 pt-2.5">
+                <p className="text-xs font-medium text-amber-900/80">Lịch giảm giá (để trống nếu không có thời hạn)</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-[11px] text-text-secondary font-medium block mb-1">Bắt đầu</label>
+                    <input type="datetime-local" value={showEditItem.discountStart}
+                      onChange={(e: any) => setShowEditItem({ ...showEditItem, discountStart: e.target.value })}
+                      className="w-full px-3 py-2 bg-white border border-surface-zen rounded-lg text-sm focus:ring-2 focus:ring-primary/30 outline-none" />
+                  </div>
+                  <div>
+                    <label className="text-[11px] text-text-secondary font-medium block mb-1">Kết thúc</label>
+                    <input type="datetime-local" value={showEditItem.discountEnd}
+                      onChange={(e: any) => setShowEditItem({ ...showEditItem, discountEnd: e.target.value })}
+                      className="w-full px-3 py-2 bg-white border border-surface-zen rounded-lg text-sm focus:ring-2 focus:ring-primary/30 outline-none" />
+                  </div>
                 </div>
               </div>
             </div>
+
+            {/* ===== Nguyên liệu ===== */}
+            <div className="border-t pt-4">
+              <p className="text-sm font-bold text-primary-dark mb-2">Nguyên liệu định lượng (BOM):</p>
+              
+              {/* Danh sách nguyên liệu đã thêm */}
+              {editPendingIngredients.length > 0 && (
+                <div className="space-y-1.5 mb-3">
+                  {editPendingIngredients.map((ing, idx) => (
+                    <div key={idx} className="flex items-center justify-between bg-surface-zen p-2.5 rounded-lg border border-surface-zen/60">
+                      <div className="flex items-center space-x-2">
+                        <span className="text-xs bg-primary/10 text-primary rounded-full w-5 h-5 flex items-center justify-center font-bold">{idx + 1}</span>
+                        <span className="font-medium text-sm">{ing.materialName}</span>
+                        <span className="text-xs text-text-secondary">({ing.quantity} {ing.unit})</span>
+                      </div>
+                      <button onClick={() => setEditPendingIngredients(editPendingIngredients.filter((_, i) => i !== idx))}
+                        className="text-error-zen hover:text-error-zen/80 p-1">
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {editPendingIngredients.length === 0 && (
+                <p className="text-xs text-gray-400 italic mb-2">Món này chưa có nguyên liệu nào. Thêm nguyên liệu bên dưới để tự động trừ kho khi bán.</p>
+              )}
+
+              {/* Form thêm nguyên liệu */}
+              <div className="space-y-2 bg-surface-zen/50 p-3 rounded-lg border border-surface-zen/60">
+                <Select label="Chọn nguyên liệu" value={ingredientForm.materialId}
+                  onChange={(e: any) => {
+                    const mat = rawMaterials.find((m: any) => m.id === e.target.value);
+                    setIngredientForm({
+                      materialId: e.target.value,
+                      materialName: mat?.name || '',
+                      quantity: '1',
+                      unit: mat?.unit || '',
+                    });
+                  }}
+                  options={rawMaterials.map((m: any) => ({ value: m.id, label: `${m.name} (${m.unit})` }))} />
+                <div className="grid grid-cols-2 gap-2">
+                  <Input label="Số lượng" type="number" value={ingredientForm.quantity}
+                    onChange={(e: any) => setIngredientForm({ ...ingredientForm, quantity: e.target.value })} />
+                  <Input label="Đơn vị" value={ingredientForm.unit}
+                    onChange={(e: any) => setIngredientForm({ ...ingredientForm, unit: e.target.value })} />
+                </div>
+                <button onClick={() => {
+                  if (!ingredientForm.materialId) return;
+                  if (editPendingIngredients.some(i => i.materialId === ingredientForm.materialId)) {
+                    toast.error('Nguyên liệu này đã được thêm!');
+                    return;
+                  }
+                  const mat = rawMaterials.find((m: any) => m.id === ingredientForm.materialId);
+                  setEditPendingIngredients([...editPendingIngredients, {
+                    materialId: ingredientForm.materialId,
+                    materialName: mat?.name || ingredientForm.materialName,
+                    quantity: ingredientForm.quantity,
+                    unit: ingredientForm.unit || mat?.unit || '',
+                  }]);
+                  setIngredientForm({ materialId: '', materialName: '', quantity: '1', unit: '' });
+                }} disabled={!ingredientForm.materialId}
+                  className="w-full py-2 bg-primary/10 text-primary rounded-lg text-sm font-medium hover:bg-primary/20 transition-all disabled:opacity-50 flex items-center justify-center space-x-1">
+                  <Plus size={14} /><span>Thêm nguyên liệu</span>
+                </button>
+              </div>
+            </div>
+
             <button onClick={updateMenuItem}
               className="w-full py-3 bg-accent text-white rounded-xl font-medium hover:bg-primary-dark transition-all">
-              Cập nhật
+              Cập nhật{editPendingIngredients.length > 0 ? ` (${editPendingIngredients.length} nguyên liệu)` : ''}
             </button>
           </div>
         </Modal>
