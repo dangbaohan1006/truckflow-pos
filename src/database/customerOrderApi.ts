@@ -68,19 +68,20 @@ async function request<T>(
   options: RequestInit = {},
   authRequired = false,
 ): Promise<T> {
+  const url = buildUrl(`${API_BASE}${endpoint}`);
+  const isGas = url.includes('script.google.com');
+
   const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
+    'Content-Type': isGas ? 'text/plain;charset=utf-8' : 'application/json',
     ...(options.headers as Record<string, string>),
   };
 
-  if (authRequired) {
+  if (authRequired && !isGas) {
     const token = getSessionToken();
     if (token) {
       headers['Authorization'] = `Bearer ${token}`;
     }
   }
-
-  const url = buildUrl(`${API_BASE}${endpoint}`);
 
   const response = await fetch(url, {
     ...options,
