@@ -84,27 +84,41 @@ export default function StaffOrders() {
 
   // View order detail
   const handleViewDetail = async (order: CustomerOrder) => {
+    // 1. Instant response (0ms delay): Show order detail with local cached data immediately!
+    const sanitizedStatus = (order.status || 'PENDING').toString().trim().toUpperCase() as any;
+    setSelectedOrder({
+      ...order,
+      status: sanitizedStatus
+    });
+    setEditingItems((order.items || []).map((item) => ({
+      menu_item_id: item.menu_item_id,
+      product_name: item.product_name,
+      quantity: item.quantity,
+      price: item.price,
+      note: item.note || '',
+    })));
+    setStaffNote(order.staff_note || '');
+    setShowDetail(true);
+
+    // 2. Fetch fresh detailed order data in the background silently
     try {
       const detail = await getOrderDetail(order.id);
-      
-      // Clean and guarantee status is present and uppercase (self-healing fallback to order.status)
-      const sanitizedStatus = (detail.status || order.status || 'PENDING').toString().trim().toUpperCase() as any;
+      const freshStatus = (detail.status || order.status || 'PENDING').toString().trim().toUpperCase() as any;
       
       setSelectedOrder({
         ...detail,
-        status: sanitizedStatus
+        status: freshStatus
       });
-      setEditingItems(detail.items.map((item) => ({
+      setEditingItems((detail.items || []).map((item) => ({
         menu_item_id: item.menu_item_id,
         product_name: item.product_name,
         quantity: item.quantity,
         price: item.price,
-        note: item.note,
+        note: item.note || '',
       })));
       setStaffNote(detail.staff_note || '');
-      setShowDetail(true);
     } catch (e: any) {
-      toast.error('Không thể tải chi tiết đơn');
+      console.warn('Could not refresh order details in background:', e);
     }
   };
 
@@ -619,22 +633,16 @@ export default function StaffOrders() {
               <div className="flex space-x-3">
                 <button
                   onClick={handleUpdate}
-                  className="flex-1 py-3 border border-primary text-primary rounded-xl font-medium hover:bg-primary/5 transition-all flex items-center justify-center space-x-2"
+                  className="flex-1 py-3 border border-primary text-primary rounded-xl text-[11px] font-bold uppercase tracking-wider hover:bg-primary/5 transition-all flex items-center justify-center cursor-pointer"
                 >
-                  <Edit3 size={18} />
                   <span>Cập nhật</span>
                 </button>
                 <button
                   onClick={handleConfirm}
                   disabled={confirming}
-                  className="flex-1 py-3 bg-accent text-white rounded-xl font-bold shadow-lg hover:bg-primary-dark transition-all disabled:opacity-50 flex items-center justify-center space-x-2"
+                  className="flex-1 py-3 bg-accent text-white rounded-xl text-[11px] font-bold uppercase tracking-wider shadow-lg hover:bg-primary-dark transition-all disabled:opacity-50 flex items-center justify-center cursor-pointer"
                 >
-                  {confirming ? (
-                    <Clock size={18} className="animate-spin" />
-                  ) : (
-                    <Check size={18} />
-                  )}
-                  <span>{confirming ? 'Đang xử lý...' : 'XÁC NHẬN & IN BILL'}</span>
+                  <span>{confirming ? 'Đang xử lý...' : 'Xác nhận & In Bill'}</span>
                 </button>
               </div>
             )}
@@ -643,16 +651,14 @@ export default function StaffOrders() {
               <div className="flex space-x-3">
                 <button
                   onClick={() => printBill(selectedOrder)}
-                  className="flex-1 py-3 bg-primary text-white rounded-xl font-medium hover:bg-primary-dark transition-all flex items-center justify-center space-x-2"
+                  className="flex-1 py-3 bg-primary text-white rounded-xl text-[11px] font-bold uppercase tracking-wider hover:bg-primary-dark transition-all flex items-center justify-center cursor-pointer"
                 >
-                  <Printer size={18} />
                   <span>In lại bill</span>
                 </button>
                 <button
                   onClick={() => handleComplete(selectedOrder.id)}
-                  className="flex-1 py-3 bg-success-zen text-white rounded-xl font-medium hover:bg-green-700 transition-all flex items-center justify-center space-x-2"
+                  className="flex-1 py-3 bg-success-zen text-white rounded-xl text-[11px] font-bold uppercase tracking-wider hover:bg-green-700 transition-all flex items-center justify-center cursor-pointer"
                 >
-                  <CheckCircle size={18} />
                   <span>Hoàn tất</span>
                 </button>
               </div>
