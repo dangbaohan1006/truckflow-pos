@@ -229,7 +229,7 @@ export default function CustomerOrder() {
   if (orderSuccess) {
     return (
       <div style={{
-        height: '100dvh',
+        height: '100%',
         background: `linear-gradient(135deg, ${colors.primary} 0%, #fff7ed 40%, #fff 100%)`,
         display: 'flex',
         alignItems: 'center',
@@ -314,7 +314,7 @@ export default function CustomerOrder() {
   if (showInfoForm) {
     return (
       <div style={{
-        height: '100dvh',
+        height: '100%',
         background: `radial-gradient(circle at top left, rgba(142, 151, 117, 0.15) 0%, transparent 40%),
                      radial-gradient(circle at bottom right, rgba(226, 132, 19, 0.1) 0%, transparent 40%),
                      #FDFCF8`,
@@ -494,7 +494,7 @@ export default function CustomerOrder() {
   // ── Main Ordering Interface ──────────────────────────────────
   return (
     <div style={{
-      height: '100dvh',
+      height: '100%',
       background: colors.background,
       display: 'flex',
       flexDirection: 'column',
