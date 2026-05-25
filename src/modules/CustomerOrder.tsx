@@ -841,7 +841,7 @@ export default function CustomerOrder() {
             exit={{ y: 100, opacity: 0 }}
             transition={{ type: 'spring', damping: 25, stiffness: 280 }}
             style={{
-              position: 'fixed',
+              position: 'absolute',
               bottom: '16px', // Floating overlay
               left: '50%',
               transform: 'translateX(-50%)',

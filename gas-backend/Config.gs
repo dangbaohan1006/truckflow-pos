@@ -8,7 +8,7 @@
 // ============================================================
 // Spreadsheet ID — set this to your Google Sheet ID
 // ============================================================
-const SPREADSHEET_ID = '1Z7AxBT883gpF7UjDZHgU_4-M2fltvK1mQVkiQdDGX9AE';
+const SPREADSHEET_ID = '1Z7AxBT883gpF7UjDZHgU_4-M2fltvK1mQVkiQdDGX9A';
 
 // ============================================================
 // Sheet (tab) names
