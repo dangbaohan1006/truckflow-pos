@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import {
   Store, Package, BarChart3, Settings, Wifi, WifiOff, Cloud, RefreshCw,
   Wallet, Users, DollarSign, LogOut, Shield, User, ClipboardList,
-} from 'lucide-react';
+  ChevronLeft, ChevronRight } from 'lucide-react';
 import { mySync, publishMenuToBackend } from './database/index.js';
 import { AuthProvider, useAuth } from './auth/AuthContext.js';
 import LoginScreen from './auth/LoginScreen.js';
@@ -253,9 +253,58 @@ function AppContent() {
   }
 
   return (
-    <div className="h-screen flex bg-background text-text-main">
-      {/* Sidebar */}
-      <div className="w-64 bg-white border-r border-surface-zen flex flex-col">
+    <div className="h-screen flex flex-col md:flex-row bg-background text-text-main overflow-hidden">
+      {/* Mobile Top Header */}
+      <div className="md:hidden h-14 bg-white border-b border-surface-zen px-4 flex items-center justify-between z-30 shrink-0 shadow-sm">
+        <div className="flex items-center space-x-2">
+          <div className="w-8 h-8 bg-accent rounded-lg flex items-center justify-center">
+            <Store size={18} className="text-white" />
+          </div>
+          <span className="font-bold text-primary-dark text-base">TruckFlow</span>
+        </div>
+        
+        <div className="flex items-center space-x-2">
+          {/* Sync Status Button */}
+          <button
+            onClick={handleSync}
+            disabled={syncing || !isOnline}
+            className="p-2 text-text-secondary hover:bg-surface-zen rounded-lg transition-all"
+            title="Đồng bộ dữ liệu"
+          >
+            <RefreshCw size={16} className={syncing ? 'animate-spin text-primary' : ''} />
+          </button>
+
+          {/* View Switcher */}
+          {!isAdminView && canAccessAdmin && (
+            <button
+              onClick={() => navigateTo('/admin')}
+              className="px-2 py-1 bg-accent/10 text-accent hover:bg-accent hover:text-white rounded-md text-[11px] font-semibold transition-all"
+            >
+              Admin ➡️
+            </button>
+          )}
+          {isAdminView && canAccessStaff && (
+            <button
+              onClick={() => navigateTo('/')}
+              className="px-2 py-1 bg-primary/10 text-primary hover:bg-primary hover:text-white rounded-md text-[11px] font-semibold transition-all"
+            >
+              ⬅️ Staff
+            </button>
+          )}
+
+          {/* Log out */}
+          <button
+            onClick={logout}
+            className="p-2 text-text-secondary hover:bg-error-zen/10 hover:text-error-zen rounded-lg transition-all"
+            title="Đăng xuất"
+          >
+            <LogOut size={16} />
+          </button>
+        </div>
+      </div>
+
+      {/* Desktop Sidebar (hidden on mobile) */}
+      <div className="hidden md:flex w-64 bg-white border-r border-surface-zen flex-col shrink-0">
         <div className="p-6 border-b border-surface-zen">
           <div className="flex items-center space-x-3">
             <div className="w-10 h-10 bg-accent rounded-xl flex items-center justify-center">
@@ -356,9 +405,9 @@ function AppContent() {
         </div>
       </div>
 
-      {/* Main Content */}
-      <div className="flex-1 flex flex-col overflow-hidden">
-        <div className="flex-1 overflow-y-auto p-8">
+      {/* Main Content Area */}
+      <div className="flex-1 flex flex-col overflow-hidden relative">
+        <div className="flex-1 overflow-y-auto p-4 md:p-8 pb-24 md:pb-8">
           <AnimatePresence mode="wait">
             <motion.div
               key={activeModule}
@@ -377,6 +426,31 @@ function AppContent() {
             </motion.div>
           </AnimatePresence>
         </div>
+      </div>
+
+      {/* Mobile Bottom Navigation Bar (hidden on desktop) */}
+      <div className="md:hidden fixed bottom-0 left-0 right-0 h-16 bg-white border-t border-surface-zen z-40 flex items-center justify-around shadow-[0_-4px_12px_rgba(0,0,0,0.05)] px-2 safe-bottom">
+        {filteredModules.map((mod) => {
+          const Icon = ICON_MAP[mod.icon] || Store;
+          const active = activeModule === mod.key;
+          return (
+            <button
+              key={mod.key}
+              onClick={() => setActiveModule(mod.key)}
+              className={`relative flex flex-col items-center justify-center flex-1 h-full py-1 transition-all ${
+                active ? 'text-primary' : 'text-text-secondary hover:text-primary/70'
+              }`}
+            >
+              <Icon size={20} className={active ? 'scale-110 transition-transform font-bold' : ''} />
+              <span className="text-[10px] mt-1 font-semibold truncate max-w-[80px]">{mod.label}</span>
+              {mod.key === 'customer-orders' && unreadCount > 0 && (
+                <span className="absolute top-2 right-1/2 translate-x-4 bg-accent text-white text-[9px] font-bold h-4 min-w-4 px-1 rounded-full flex items-center justify-center shadow-sm">
+                  {unreadCount}
+                </span>
+              )}
+            </button>
+          );
+        })}
       </div>
     </div>
   );

@@ -389,8 +389,8 @@ export default function POS() {
         </div>
       ) : (
         /* POS CHECKOUT SUB-TAB */
-        <div className="flex-1 flex space-x-6 overflow-hidden min-h-0">
-          <div className="flex-1 flex flex-col space-y-4 overflow-hidden">
+        <div className="flex-1 flex flex-col lg:flex-row lg:space-x-6 space-y-6 lg:space-y-0 overflow-y-auto lg:overflow-hidden min-h-0 pb-12 lg:pb-0">
+          <div className="flex-1 flex flex-col space-y-4 min-h-0">
             <div className="flex space-x-3">
               <div className="flex-1 relative">
                 <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary" />
@@ -415,7 +415,7 @@ export default function POS() {
               ))}
             </div>
             <div className="flex-1 overflow-y-auto min-h-0">
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                 {filteredItems.map((item: any) => (
                   <motion.button whileTap={{ scale: 0.95 }} key={item.id} onClick={() => addToCart(item)}
                     className="p-4 bg-white rounded-xl shadow-sm border border-gray-200/50 flex flex-col items-center space-y-2 hover:shadow-md transition-all hover:border-primary/30 cursor-pointer">
@@ -430,7 +430,7 @@ export default function POS() {
                   </motion.button>
                 ))}
                 {filteredItems.length === 0 && (
-                  <div className="col-span-3 text-center py-12 text-gray-400">
+                  <div className="col-span-2 sm:col-span-3 lg:col-span-3 xl:col-span-4 text-center py-12 text-gray-400">
                     {searchTerm ? 'Không tìm thấy món' : 'Chưa có món nào trong menu'}
                   </div>
                 )}
@@ -438,7 +438,7 @@ export default function POS() {
             </div>
           </div>
 
-          <div className="w-96 bg-white rounded-2xl shadow-xl flex flex-col border border-surface-zen overflow-hidden shrink-0">
+          <div className="w-full lg:w-96 bg-white rounded-2xl shadow-xl flex flex-col border border-surface-zen overflow-hidden shrink-0">
             <div className="p-6 pb-4 border-b border-surface-zen">
               <div className="flex items-center space-x-2">
                 <ShoppingCart className="text-accent" />
