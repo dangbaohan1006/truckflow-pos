@@ -843,8 +843,10 @@ export default function CustomerOrder() {
             style={{
               position: 'absolute',
               bottom: '16px', // Floating overlay
-              left: '50%',
-              transform: 'translateX(-50%)',
+              left: 0,
+              right: 0,
+              marginLeft: 'auto',
+              marginRight: 'auto',
               width: 'calc(100% - 32px)',
               maxWidth: '369px', // Perfect alignment inside dynamic frame container
               zIndex: 40,
