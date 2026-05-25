@@ -174,34 +174,170 @@ export default function StaffOrders() {
 
   // Print bill
   const printBill = (order: CustomerOrder) => {
-    const w = window.open('', '_blank', 'width=300,height=600');
-    if (!w) return;
-    w.document.write(`
-      <html><head><title>Hóa đơn</title>
-      <style>
-        body { font-family: monospace; font-size: 12px; padding: 10px; }
-        h2 { text-align: center; }
-        table { width: 100%; border-collapse: collapse; }
-        th, td { padding: 4px; text-align: left; border-bottom: 1px dashed #ccc; }
-        .total { font-weight: bold; font-size: 14px; }
-        .center { text-align: center; }
-      </style></head><body>
-      <h2>TRUCKFLOW POS</h2>
-      <p class="center">${formatDateTime(order.created_at)}</p>
-      <p class="center">Bàn: ${order.table_number}</p>
-      <p class="center">Khách: ${order.customer_name}</p>
-      ${order.customer_phone ? `<p class="center">ĐT: ${order.customer_phone}</p>` : ''}
-      <hr/>
-      <table><tr><th>SP</th><th>SL</th><th>ĐG</th><th>TT</th></tr>
-        ${order.items.map((item) => `<tr><td>${item.product_name}</td><td>${item.quantity}</td><td>${formatCurrency(item.price)}</td><td>${formatCurrency(item.price * item.quantity)}</td></tr>`).join('')}
-      </table>
-      <hr/>
-      <p class="total">Tổng cộng: ${formatCurrency(order.items.reduce((sum, item) => sum + item.price * item.quantity, 0))}</p>
-      ${order.note ? `<p>Ghi chú: ${order.note}</p>` : ''}
-      <hr/><p class="center">Cảm ơn quý khách!</p>
-      <script>window.print();window.close();</script></body></html>
+    // 1. Remove existing print iframe if any
+    const existingFrame = document.getElementById('receipt-print-iframe');
+    if (existingFrame) {
+      existingFrame.remove();
+    }
+
+    // 2. Create a hidden iframe in the background
+    const iframe = document.createElement('iframe');
+    iframe.id = 'receipt-print-iframe';
+    iframe.style.position = 'fixed';
+    iframe.style.right = '0';
+    iframe.style.bottom = '0';
+    iframe.style.width = '0';
+    iframe.style.height = '0';
+    iframe.style.border = '0';
+    document.body.appendChild(iframe);
+
+    const doc = iframe.contentWindow?.document || iframe.contentDocument;
+    if (!doc) return;
+
+    // 3. Write elegant, standard 80mm thermal receipt HTML
+    doc.write(`
+      <html>
+        <head>
+          <title>In Hóa Đơn</title>
+          <style>
+            @page {
+              size: 80mm auto; /* Standard thermal roll size (80mm) */
+              margin: 0;
+            }
+            body {
+              font-family: 'Courier New', Courier, monospace;
+              font-size: 12px;
+              line-height: 1.4;
+              color: #000;
+              margin: 0;
+              padding: 8px;
+              width: 72mm; /* Printable width for 80mm paper */
+              box-sizing: border-box;
+            }
+            .center {
+              text-align: center;
+            }
+            .right {
+              text-align: right;
+            }
+            .bold {
+              font-weight: bold;
+            }
+            h2 {
+              font-size: 15px;
+              margin: 8px 0 4px 0;
+              text-transform: uppercase;
+              text-align: center;
+            }
+            .info-table, .items-table {
+              width: 100%;
+              border-collapse: collapse;
+              margin: 8px 0;
+            }
+            .info-table td {
+              padding: 1px 0;
+              font-size: 11px;
+            }
+            .items-table th {
+              border-top: 1px dashed #000;
+              border-bottom: 1px dashed #000;
+              padding: 4px 0;
+              font-size: 11px;
+              text-align: left;
+            }
+            .items-table td {
+              padding: 4px 0;
+              font-size: 11px;
+              vertical-align: top;
+            }
+            .divider {
+              border-top: 1px dashed #000;
+              margin: 8px 0;
+            }
+            .total-row {
+              font-size: 13px;
+              font-weight: bold;
+              display: flex;
+              justify-content: space-between;
+              margin-top: 4px;
+            }
+            .footer {
+              margin-top: 12px;
+              text-align: center;
+              font-size: 11px;
+            }
+          </style>
+        </head>
+        <body>
+          <h2>TRUCKFLOW F&B</h2>
+          <div class="center bold" style="font-size: 10px; margin-bottom: 5px;">HÓA ĐƠN GỌI MÓN</div>
+          
+          <table class="info-table">
+            <tr>
+              <td><b>Bàn:</b> Bàn ${order.table_number}</td>
+              <td class="right"><b>Giờ:</b> ${formatDateTime(order.created_at)}</td>
+            </tr>
+            <tr>
+              <td><b>Khách:</b> ${order.customer_name}</td>
+              <td class="right">${order.customer_phone ? `<b>ĐT:</b> ${order.customer_phone}` : ''}</td>
+            </tr>
+            <tr>
+              <td colspan="2"><b>Mã đơn:</b> ${order.id.substring(4, 12).toUpperCase()}</td>
+            </tr>
+          </table>
+          
+          <table class="items-table">
+            <thead>
+              <tr>
+                <th style="width: 50%;">Tên món</th>
+                <th style="width: 15%; text-align: center;">SL</th>
+                <th style="width: 35%; text-align: right;">T.Tiền</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${order.items.map((item) => `
+                <tr>
+                  <td>
+                    ${item.product_name}
+                    ${item.note ? `<div style="font-size: 9px; font-style: italic; color: #555;">* ${item.note}</div>` : ''}
+                  </td>
+                  <td style="text-align: center;">${item.quantity}</td>
+                  <td style="text-align: right;">${formatCurrency(item.price * item.quantity)}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+          
+          <div class="divider"></div>
+          
+          <div class="total-row">
+            <span>TỔNG CỘNG:</span>
+            <span>${formatCurrency(order.items.reduce((sum, item) => sum + item.price * item.quantity, 0))}</span>
+          </div>
+          
+          ${order.note ? `
+            <div style="margin-top: 8px; font-size: 10px;">
+              <b>Ghi chú:</b> ${order.note}
+            </div>
+          ` : ''}
+          
+          <div class="divider"></div>
+          
+          <div class="footer">
+            <div class="bold">CẢM ƠN QUÝ KHÁCH!</div>
+            <div style="font-size: 9px; margin-top: 4px;">Hệ thống quản lý F&B TruckFlow</div>
+          </div>
+        </body>
+      </html>
     `);
-    w.document.close();
+    
+    doc.close();
+
+    // 4. Trigger print once parsed (using a small timeout to let the browser parse the HTML)
+    setTimeout(() => {
+      iframe.contentWindow?.focus();
+      iframe.contentWindow?.print();
+    }, 200);
   };
 
   // Edit item quantity
