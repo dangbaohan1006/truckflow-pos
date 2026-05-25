@@ -75,6 +75,37 @@ function AppContent() {
   const [syncing, setSyncing] = useState(false);
   const toast = useToast();
 
+  // Determine if the URL path or hash indicates the Admin view (/admin or #/admin)
+  const [isAdminView, setIsAdminView] = useState(() => {
+    return (
+      window.location.pathname.startsWith('/admin') ||
+      window.location.hash.startsWith('#/admin') ||
+      window.location.hash === '#admin'
+    );
+  });
+
+  useEffect(() => {
+    const handleUrlChange = () => {
+      const isCurrentAdmin =
+        window.location.pathname.startsWith('/admin') ||
+        window.location.hash.startsWith('#/admin') ||
+        window.location.hash === '#admin';
+      setIsAdminView(isCurrentAdmin);
+    };
+
+    window.addEventListener('popstate', handleUrlChange);
+    window.addEventListener('hashchange', handleUrlChange);
+    return () => {
+      window.removeEventListener('popstate', handleUrlChange);
+      window.removeEventListener('hashchange', handleUrlChange);
+    };
+  }, []);
+
+  const navigateTo = (path: string) => {
+    window.history.pushState(null, '', path);
+    window.dispatchEvent(new Event('popstate'));
+  };
+
   // Global customer order notifications polling
   const [unreadCount, setUnreadCount] = useState(0);
   const prevCountRef = useRef<number | null>(null);
@@ -158,11 +189,22 @@ function AppContent() {
   // Get accessible modules based on user permissions
   const accessibleModules = user ? getAccessibleModules(user.permissions) : [];
 
-  // For STAFF role, further filter by custom module access
+  const canAccessAdmin = accessibleModules.some(m => ['pos', 'inventory', 'reports', 'finance', 'settings'].includes(m.key));
+  const canAccessStaff = accessibleModules.some(m => ['customer-orders', 'hr'].includes(m.key));
+
+  // Filter modules based on whether we are in the Admin View or Staff View
+  const viewModules = accessibleModules.filter((mod) => {
+    if (isAdminView) {
+      return ['pos', 'inventory', 'reports', 'finance', 'settings'].includes(mod.key);
+    } else {
+      return ['customer-orders', 'hr'].includes(mod.key);
+    }
+  });
+
   // For STAFF role, further filter by custom module access
   const staffModuleAccess = user?.role === 'STAFF' ? (user as any).moduleAccess : null;
   const filteredModules = staffModuleAccess
-    ? accessibleModules.filter((mod) => {
+    ? viewModules.filter((mod) => {
         try {
           if (typeof staffModuleAccess === 'string') {
             // Handle if it's a JSON array string
@@ -182,13 +224,16 @@ function AppContent() {
         }
         return false;
       })
-    : accessibleModules;
+    : viewModules;
 
 
-  // If current active module is not accessible, switch to first accessible
+  // If current active module is not accessible in the current view, switch to first accessible
   useEffect(() => {
-    if (filteredModules.length > 0 && !filteredModules.find((m) => m.key === activeModule)) {
-      setActiveModule(filteredModules[0].key);
+    if (filteredModules.length > 0) {
+      const hasActive = filteredModules.find((m) => m.key === activeModule);
+      if (!hasActive) {
+        setActiveModule(filteredModules[0].key);
+      }
     }
   }, [filteredModules, activeModule]);
 
@@ -229,7 +274,6 @@ function AppContent() {
         {/* Navigation */}
         <div className="flex-1 p-4 space-y-1 overflow-y-auto">
           {filteredModules.map((mod) => {
-
             const Icon = ICON_MAP[mod.icon] || Store;
             return (
               <SidebarItem
@@ -244,8 +288,29 @@ function AppContent() {
           })}
         </div>
 
-        {/* Bottom: Sync + Logout */}
+        {/* Bottom: Sync + View Switcher + Logout */}
         <div className="p-4 border-t border-surface-zen space-y-3">
+          {/* View Switcher for Authorized Users */}
+          {isAdminView ? (
+            canAccessStaff && (
+              <button
+                onClick={() => navigateTo('/')}
+                className="w-full py-2 bg-primary/10 text-primary hover:bg-primary hover:text-white rounded-lg text-xs font-semibold transition-all flex items-center justify-center space-x-1.5 shadow-sm cursor-pointer"
+              >
+                <span>⬅️ Xem trang Nhân viên</span>
+              </button>
+            )
+          ) : (
+            canAccessAdmin && (
+              <button
+                onClick={() => navigateTo('/admin')}
+                className="w-full py-2 bg-accent/10 text-accent hover:bg-accent hover:text-white rounded-lg text-xs font-semibold transition-all flex items-center justify-center space-x-1.5 shadow-sm cursor-pointer"
+              >
+                <span>Chuyển sang trang Admin ➡️</span>
+              </button>
+            )
+          )}
+
           <div className="flex items-center justify-between px-2">
             <div className="flex items-center space-x-2">
               {isOnline ? (
@@ -258,7 +323,7 @@ function AppContent() {
             <button
               onClick={handleSync}
               disabled={syncing || !isOnline}
-              className="text-primary hover:text-primary-dark transition-all disabled:opacity-50"
+              className="text-primary hover:text-primary-dark transition-all disabled:opacity-50 cursor-pointer"
             >
               <RefreshCw size={16} className={syncing ? 'animate-spin' : ''} />
             </button>
@@ -266,14 +331,14 @@ function AppContent() {
           <button
             onClick={handleSync}
             disabled={syncing || !isOnline}
-            className="w-full py-2 bg-surface-zen rounded-lg text-xs font-medium text-text-secondary hover:bg-primary/10 hover:text-primary transition-all flex items-center justify-center space-x-1 disabled:opacity-50"
+            className="w-full py-2 bg-surface-zen rounded-lg text-xs font-medium text-text-secondary hover:bg-primary/10 hover:text-primary transition-all flex items-center justify-center space-x-1 disabled:opacity-50 cursor-pointer"
           >
             <Cloud size={14} />
             <span>{syncing ? 'Đang đồng bộ...' : 'Đồng bộ dữ liệu'}</span>
           </button>
           <button
             onClick={logout}
-            className="w-full py-2 bg-surface-zen rounded-lg text-xs font-medium text-text-secondary hover:bg-error-zen/10 hover:text-error-zen transition-all flex items-center justify-center space-x-1"
+            className="w-full py-2 bg-surface-zen rounded-lg text-xs font-medium text-text-secondary hover:bg-error-zen/10 hover:text-error-zen transition-all flex items-center justify-center space-x-1 cursor-pointer"
           >
             <LogOut size={14} />
             <span>Đăng xuất</span>
