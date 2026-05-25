@@ -83,8 +83,12 @@ async function request<T>(
     }
   }
 
+  // Rewrite PUT/DELETE methods to POST for Google Apps Script Web Apps (since they only support GET & POST)
+  const resolvedMethod = isGas && options.method && options.method !== 'GET' ? 'POST' : (options.method || 'GET');
+
   const response = await fetch(url, {
     ...options,
+    method: resolvedMethod,
     headers,
   });
 
