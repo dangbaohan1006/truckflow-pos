@@ -40,6 +40,10 @@ function doGet(e) {
       case '/api/sales/sync':
         result = handleSalesPull(params, headers);
         break;
+
+      case '/api/users/sync':
+        result = handleUserPull(params, headers);
+        break;
         
       case '/api/health':
         result = { status: 'ok', timestamp: new Date().toISOString() };
@@ -137,6 +141,10 @@ function doPost(e) {
         
       case '/api/sales/sync':
         result = handleSalesSync(body, headers);
+        break;
+
+      case '/api/users/sync':
+        result = handleUserSync(body, headers);
         break;
         
       case '/api/inventory/receive':

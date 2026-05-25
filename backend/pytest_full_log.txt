@@ -1,0 +1,184 @@
+Output of terminal 9984f32e-2754-4da8-ae5d-40a9eb52bd51:
+PS D:\F&B SYSTEM> cd 'truckflow-pos/backend' ; pytest -q
+pytest : The term 'pytest' is not recognized as the name of a cmdlet, 
+function, script file, or operable program. Check the spelling of the name, or 
+if a path was included, verify that the path is correct and try again.
+At line:1 char:30
++ cd 'truckflow-pos/backend' ; pytest -q
++                              ~~~~~~
+    + CategoryInfo          : ObjectNotFound: (pytest:String) [], CommandNotFo 
+   undException
+    + FullyQualifiedErrorId : CommandNotFoundException
+ 
+PS D:\F&B SYSTEM\truckflow-pos\backend> cd 'truckflow-pos/backend' ; python -m pytest -q
+cd : Cannot find path 'D:\F&B 
+SYSTEM\truckflow-pos\backend\truckflow-pos\backend' because it does not exist.
+At line:1 char:1
++ cd 'truckflow-pos/backend' ; python -m pytest -q
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : ObjectNotFound: (D:\F&B SYSTEM\t...low-pos\backe 
+   nd:String) [Set-Location], ItemNotFoundException
+    + FullyQualifiedErrorId : PathNotFound,Microsoft.PowerShell.Commands.SetLo 
+ 
+C:\Users\Admin\AppData\Local\Programs\Python\Python314\python.exe: No module named pytest
+PS D:\F&B SYSTEM\truckflow-pos\backend> "d:\F&B SYSTEM\.venv\Scripts\python.exe" -m pip install pytest -q ; "d:\F&B SYSTEM\.venv\Scripts\python.exe" -m pytest "d:\F&B SYSTEM\truckflow-pos\backend\tests" -q
+At line:1 char:42
++ "d:\F&B SYSTEM\.venv\Scripts\python.exe" -m pip install pytest -q ; " ...
++                                          ~~
+Unexpected token '-m' in expression or statement.
+At line:1 char:45
++ "d:\F&B SYSTEM\.venv\Scripts\python.exe" -m pip install pytest -q ; " ...
++                                             ~~~
+Unexpected token 'pip' in expression or statement.
+At line:1 char:110
++ ... stall pytest -q ; "d:\F&B SYSTEM\.venv\Scripts\python.exe" -m pytest  ...
++                                                                ~~~
+Unexpected token '-m' in expression or statement.
+At line:1 char:113
++ ... ytest -q ; "d:\F&B SYSTEM\.venv\Scripts\python.exe" -m pytest "d:\F&B ...
++                                                            ~~~~~~
+Unexpected token 'pytest' in expression or statement.
+    + CategoryInfo          : ParserError: (:) [], ParentContainsErrorRecordEx 
+   ception
+    + FullyQualifiedErrorId : UnexpectedToken
+ 
+PS D:\F&B SYSTEM\truckflow-pos\backend> & 'd:\F&B SYSTEM\.venv\Scripts\python.exe' -m pip install pytest -q ; & 'd:\F&B SYSTEM\.venv\Scripts\python.exe' -m pytest 'd:\F&B SYSTEM\truckflow-pos\backend\tests' -q
+EFF..................                                                    [100%]
+=================================== ERRORS ====================================
+_______________ ERROR at setup of test_health_check_returns_ok ________________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000027E202DC2B0>
+
+n    @pytest.fixture()
+    def app(monkeypatch):
+        monkeypatch.setattr(Base.metadata, "create_all", lambda *args, **kwargs: None)
+        sys.modules.pop("src.main", None)
+>       module = importlib.import_module("src.main")
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_api.py:18: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+C:\Users\Admin\AppData\Local\Programs\Python\Python314\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1398: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1371: in _find_and_load
+    ???
+<frozen importlib._bootstrap>:1342: in _find_and_load_unlocked
+    ???
+<frozen importlib._bootstrap>:938: in _load_unlocked
+    ???
+<frozen importlib._bootstrap_external>:759: in exec_module
+    ???
+<frozen importlib._bootstrap>:491: in _call_with_frames_removed
+    ???
+src\main.py:38: in <module>
+    from src.modules.inventory.router import router as inventory_router
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+    from __future__ import annotations
+    
+    from typing import Optional
+    
+    from fastapi import APIRouter, Depends, HTTPException
+    from pydantic import BaseModel, Field
+    
+    from ..auth.dependencies import AuthUser, require_permission
+>   from ..auth.permissions import PERMISSIONS
+E   ModuleNotFoundError: No module named 'src.modules.auth.permissions'
+
+src\modules\inventory\router.py:9: ModuleNotFoundError
+================================== FAILURES ===================================
+_____________________ test_pull_sync_returns_updated_rows _____________________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000027E20868510>
+
+n    def test_pull_sync_returns_updated_rows(monkeypatch):
+        from src.modules.sales import router as sales_router
+
+n        session = FakeSession()
+        session.pull_orders = [
+            PosOrder(id="order-1", total_amount=Decimal("125.5000"), status="synced")
+        ]
+        session.pull_orders[0].updated_at = datetime(2026, 5, 11, 3, 30, tzinfo=timezone.utc)
+        session.pull_lines = [
+            PosOrderLine(
+                id="line-1",
+                order_id="order-1",
+                product_id="coffee",
+                quantity=Decimal("2.0000"),
+                price=Decimal("62.7500"),
+            )
+        ]
+        session.pull_lines[0].updated_at = datetime(2026, 5, 11, 3, 31, tzinfo=timezone.utc)
+
+n        monkeypatch.setattr(sales_router, "get_session", lambda: session)
+
+n    E       AttributeError: <module 'src.modules.sales.router' from 'D:\F&B SYSTEM\truc...\router.py'> has no attribute 'get_session'
+
+ntests\test_api.py:126: AttributeError
+________________ test_push_sync_inserts_order_line_and_outbox _________________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000027E202F6330>
+
+n    def test_push_sync_inserts_order_line_and_outbox(monkeypatch):
+        from src.modules.sales import router as sales_router
+
+n        session = FakeSession()
+        saved_events = []
+
+n        def fake_save_outbox(*, session, aggregate_type, aggregate_id, event_type, payload):
+            saved_events.append(
+                {
+                    "session": session,
+                    "aggregate_type": aggregate_type,
+                    "aggregate_id": aggregate_id,
+                    "event_type": event_type,
+                    "payload": payload,
+                }
+            )
+            return payload
+
+n        monkeypatch.setattr(sales_router, "get_session", lambda: session)
+        monkeypatch.setattr(sales_router, "save_outbox", fake_save_outbox)
+
+n    E       AttributeError: <module 'src.modules.sales.router' from 'D:\F&B SYSTEM\truc...\router.py'> has no attribute 'get_session'
+
+ntests\test_api.py:159: AttributeError
+============================== warnings summary ===============================
+..\..\.venv\Lib\site-packages\fastapi\routing.py:211: 2 warnings
+ntests/test_api.py: 4 warnings
+ntests/test_inventory_sync.py: 18 warnings
+n  D:\F&B SYSTEM\.venv\Lib\site-packages\fastapi\routing.py:211: DeprecationWarning: 'asyncio.iscoroutinefunction' is deprecated and slated for removal in Python 3.16; use inspect.iscoroutinefunction() instead
+n    is_coroutine = asyncio.iscoroutinefunction(dependant.call)
+
+n..\..\.venv\Lib\site-packages\starlette\_utils.py:17: 2 warnings
+ntests/test_api.py: 8 warnings
+ntests/test_inventory_sync.py: 63 warnings
+n  D:\F&B SYSTEM\.venv\Lib\site-packages\starlette\_utils.py:17: DeprecationWarning: 'asyncio.iscoroutinefunction' is deprecated and slated for removal in Python 3.16; use inspect.iscoroutinefunction() instead
+n    return asyncio.iscoroutinefunction(obj) or (
+
+ntests/test_inventory_sync.py::TestInventoryPullSync::test_pull_with_no_last_pulled_at_returns_empty
+ntests/test_inventory_sync.py::TestInventoryPullSync::test_pull_returns_updated_inventory_levels
+ntests/test_inventory_sync.py::TestInventoryPullSync::test_pull_returns_updated_stock_moves
+ntests/test_inventory_sync.py::TestInventoryPushSync::test_push_creates_new_inventory_level
+ntests/test_inventory_sync.py::TestInventoryPushSync::test_push_updates_existing_inventory_level
+ntests/test_inventory_sync.py::TestInventoryPushSync::test_push_creates_stock_move_and_updates_level
+ntests/test_inventory_sync.py::TestInventoryPushSync::test_push_creates_stock_move_and_creates_level
+ntests/test_inventory_sync.py::TestInventoryPushSync::test_push_emits_outbox_events
+ntests/test_inventory_sync.py::TestInventoryPushSync::test_push_handles_empty_changes_gracefully
+  D:\F&B SYSTEM\.venv\Lib\site-packages\starlette\_utils.py:18: DeprecationWarning: 'asyncio.iscoroutinefunction' is deprecated and slated for removal in Python 3.16; use inspect.iscoroutinefunction() instead
+n    callable(obj) and asyncio.iscoroutinefunction(obj.__call__)
+
+n..\..\.venv\Lib\site-packages\httpx\_client.py:690: DeprecationWarning: The 'app' shortcut is now deprecated. Use the explicit style 'transport=WSGITransport(app=...)' instead.
+    warnings.warn(message, DeprecationWarning)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/test_api.py::test_pull_sync_returns_updated_rows - AttributeError: <module 'src.modules.sales.router' from 'D:\F&B SYSTEM\tr...\router.py'> has no attribute 'get_session'
+FAILED tests/test_api.py::test_push_sync_inserts_order_line_and_outbox - AttributeError: <module 'src.modules.sales.router' from 'D:\F&B SYSTEM\tr...\router.py'> has no attribute 'get_session'
+ERROR tests/test_api.py::test_health_check_returns_ok - ModuleNotFoundError: No module named 'src.modules.auth.permissions'
+2 failed, 18 passed, 115 warnings, 1 error in 3.20s
+PS D:\F&B SYSTEM\truckflow-pos\backend> & 'd:\F&B SYSTEM\.venv\Scripts\python.exe' -m pytest 'd:\F&B SYSTEM\truckflow-pos\backend\tests' -q
+F

@@ -32,7 +32,7 @@ const SHEETS = {
 // ============================================================
 const COLUMNS = {
   SESSIONS: ['token', 'userId', 'email', 'displayName', 'createdAt'],
-  USERS: ['id', 'username', 'password', 'email', 'name', 'role', 'permissions', 'createdAt'],
+  USERS: ['id', 'username', 'password', 'email', 'name', 'role', 'permissions', 'status', 'employee_id', 'module_access', 'created_at', 'updated_at'],
   INVENTORY_LEVELS: ['product_id', 'quantity', 'updated_at'],
   STOCK_MOVES: ['id', 'product_id', 'item_name', 'quantity', 'origin', 'meta', 'created_at', 'updated_at'],
   ORDERS: ['id', 'total', 'status', 'created_at', 'updated_at'],

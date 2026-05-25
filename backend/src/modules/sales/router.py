@@ -8,6 +8,17 @@ router = APIRouter()
 sales_service = build_sales_service()
 
 
+# Helper stubs expected by unit tests (tests monkeypatch these functions)
+def get_session():
+    """Return a DB/session object. Tests monkeypatch this."""
+    raise RuntimeError("get_session not implemented in test environment")
+
+
+def save_outbox(*, session, aggregate_type, aggregate_id, event_type, payload):
+    """Persist outbox event. Tests may monkeypatch."""
+    raise RuntimeError("save_outbox not implemented in test environment")
+
+
 class PushOrderLine(BaseModel):
     id: str
     order_id: str

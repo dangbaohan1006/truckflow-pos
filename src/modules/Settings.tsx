@@ -81,6 +81,15 @@ export default function Settings() {
     lowStockThreshold: '10',
   });
 
+  const [printerCfg, setPrinterCfg] = useState({
+    type: 'network', // 'network' or 'usb'
+    host: '',
+    port: 9100,
+    idVendor: '',
+    idProduct: '',
+  });
+  const [showPrinterHelp, setShowPrinterHelp] = useState(false);
+
   const [employees, setEmployees] = useState<any[]>([]);
   const [userForm, setUserForm] = useState({
     username: '',
@@ -114,6 +123,12 @@ export default function Settings() {
         setConfig(JSON.parse(savedConfig));
       } catch {}
     }
+    const savedPrinter = localStorage.getItem('printerConfig');
+    if (savedPrinter) {
+      try {
+        setPrinterCfg(JSON.parse(savedPrinter));
+      } catch {}
+    }
   }, []);
 
   const saveConfig = () => {
@@ -121,6 +136,29 @@ export default function Settings() {
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
     toast.success('Đã lưu cấu hình');
+  };
+
+  const savePrinterConfig = () => {
+    localStorage.setItem('printerConfig', JSON.stringify(printerCfg));
+    toast.success('Đã lưu cấu hình máy in');
+  };
+
+  const testPrinter = async () => {
+    try {
+      const res = await fetch('/api/print', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ printer: printerCfg, lines: ['TEST PRINT', 'TruckFlow POS'] }),
+      });
+      if (!res.ok) {
+        const txt = await res.text();
+        toast.error('Test in thất bại: ' + (txt || res.statusText));
+        return;
+      }
+      toast.success('Lệnh test in đã gửi');
+    } catch (e: any) {
+      toast.error('Không thể gửi lệnh in: ' + (e.message || e));
+    }
   };
 
   const createTestData = async () => {
@@ -513,6 +551,56 @@ export default function Settings() {
                   <option value="escpos">ESC/POS (Máy in nhiệt)</option>
                   <option value="a4">A4 (Máy in thường)</option>
                 </select>
+                {config.printerType === 'escpos' && (
+                  <div className="mt-4 space-y-3">
+                    <label className="text-sm text-text-secondary font-medium block mb-1">Kết nối máy in</label>
+                    <select value={printerCfg.type} onChange={(e: any) => setPrinterCfg({ ...printerCfg, type: e.target.value })}
+                      className="w-full px-4 py-2.5 border border-surface-zen rounded-lg focus:ring-2 focus:ring-primary/30 outline-none bg-white">
+                      <option value="network">Mạng (TCP/IP)</option>
+                      <option value="usb">USB</option>
+                    </select>
+
+                    {printerCfg.type === 'network' && (
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="text-sm text-text-secondary block mb-1">Host (IP hoặc hostname)</label>
+                          <input type="text" value={printerCfg.host}
+                            onChange={(e: any) => setPrinterCfg({ ...printerCfg, host: e.target.value })}
+                            className="w-full px-4 py-2.5 border border-surface-zen rounded-lg outline-none" />
+                        </div>
+                        <div>
+                          <label className="text-sm text-text-secondary block mb-1">Port</label>
+                          <input type="number" value={printerCfg.port}
+                            onChange={(e: any) => setPrinterCfg({ ...printerCfg, port: Number(e.target.value) })}
+                            className="w-full px-4 py-2.5 border border-surface-zen rounded-lg outline-none" />
+                        </div>
+                      </div>
+                    )}
+
+                    {printerCfg.type === 'usb' && (
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="text-sm text-text-secondary block mb-1">idVendor (hex hoặc dec)</label>
+                          <input type="text" value={printerCfg.idVendor}
+                            onChange={(e: any) => setPrinterCfg({ ...printerCfg, idVendor: e.target.value })}
+                            className="w-full px-4 py-2.5 border border-surface-zen rounded-lg outline-none" />
+                        </div>
+                        <div>
+                          <label className="text-sm text-text-secondary block mb-1">idProduct (hex hoặc dec)</label>
+                          <input type="text" value={printerCfg.idProduct}
+                            onChange={(e: any) => setPrinterCfg({ ...printerCfg, idProduct: e.target.value })}
+                            className="w-full px-4 py-2.5 border border-surface-zen rounded-lg outline-none" />
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="flex space-x-3 mt-2">
+                      <button onClick={savePrinterConfig} className="px-4 py-2.5 bg-accent text-white rounded-lg font-medium hover:bg-primary-dark">Lưu máy in</button>
+                      <button onClick={testPrinter} className="px-4 py-2.5 border border-surface-zen rounded-lg text-text-secondary">Test in</button>
+                      <button onClick={() => setShowPrinterHelp(true)} className="px-4 py-2.5 border border-surface-zen rounded-lg text-text-secondary">Hướng dẫn</button>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -780,6 +868,45 @@ export default function Settings() {
               className="w-full py-3 bg-accent text-white rounded-xl font-medium hover:bg-primary-dark transition-all">
               Cập nhật
             </button>
+          </div>
+        </Modal>
+      )}
+
+      {showPrinterHelp && (
+        <Modal title="Hướng dẫn cấu hình máy in" onClose={() => setShowPrinterHelp(false)}>
+          <div className="space-y-3 text-sm">
+            <p className="font-medium">Mô tả nhanh</p>
+            <p>Hướng dẫn này giúp bạn cấu hình máy in nhiệt (ESC/POS) để hệ thống có thể gửi lệnh in trực tiếp từ backend hoặc frontend.</p>
+
+            <p className="font-medium">Khi in từ backend</p>
+            <ol className="list-decimal list-inside space-y-1">
+              <li>Đặt biến môi trường trên server (Render/VPS): <code>PRINTER_TYPE=network</code>, <code>PRINTER_HOST=IP</code>, <code>PRINTER_PORT=9100</code>.</li>
+              <li>Đảm bảo máy in có thể truy cập từ server (cùng mạng hoặc public IP) và port 9100 mở.</li>
+              <li>Gửi test in từ giao diện Settings → Máy in → Test in.</li>
+            </ol>
+
+            <p className="font-medium">Khi in từ máy nhân viên (frontend)</p>
+            <ol className="list-decimal list-inside space-y-1">
+              <li>Trong tab Máy in, chọn loại <strong>ESC/POS</strong> và kết nối <strong>Mạng (TCP/IP)</strong>.</li>
+              <li>Nhập <strong>Host</strong> (IP của máy in) và <strong>Port</strong> (mặc định 9100) rồi nhấn <strong>Lưu máy in</strong>.</li>
+              <li>Nhấn <strong>Test in</strong> để gửi lệnh test; nếu thất bại, hệ thống sẽ hiển thị lỗi (kiểm tra IP/port và firewall).</li>
+            </ol>
+
+            <p className="font-medium">Lưu ý cấu hình USB</p>
+            <p>Nếu chọn USB, backend cần quyền truy cập cổng USB (không khả dụng trên nhiều hosting). Để dùng USB bạn thường phải chạy backend trên máy nội bộ (VPS/PC) có cắm máy in.</p>
+
+            <p className="font-medium">Ví dụ cấu hình môi trường</p>
+            <pre className="bg-gray-50 p-2 rounded text-xs overflow-auto">PRINTER_TYPE=network
+PRINTER_HOST=192.168.1.55
+PRINTER_PORT=9100</pre>
+
+            <p className="font-medium">Ví dụ lưu vào trình duyệt (localStorage)</p>
+            <pre className="bg-gray-50 p-2 rounded text-xs overflow-auto">{"localStorage.setItem('printerConfig', JSON.stringify({\"type\":\"network\", \"host\":\"192.168.1.55\", \"port\":9100}))"}</pre>
+
+            <div className="flex space-x-2 mt-2">
+              <button onClick={() => { savePrinterConfig(); setShowPrinterHelp(false); }} className="px-4 py-2 bg-accent text-white rounded">Lưu cấu hình mẫu</button>
+              <button onClick={() => { testPrinter(); setShowPrinterHelp(false); }} className="px-4 py-2 border rounded">Gửi test in</button>
+            </div>
           </div>
         </Modal>
       )}

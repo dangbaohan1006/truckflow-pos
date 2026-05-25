@@ -1,0 +1,218 @@
+﻿============================= test session starts =============================
+platform win32 -- Python 3.14.3, pytest-9.0.3, pluggy-1.6.0 -- D:\F&B SYSTEM\.venv\Scripts\python.exe
+cachedir: .pytest_cache
+rootdir: d:\F&B SYSTEM\truckflow-pos\backend
+configfile: pyproject.toml
+plugins: anyio-3.7.1
+collecting ... collected 21 items
+
+tests/test_api.py::test_health_check_returns_ok FAILED                   [  4%]
+tests/test_api.py::test_pull_sync_returns_updated_rows FAILED            [  9%]
+tests/test_api.py::test_push_sync_inserts_order_line_and_outbox FAILED   [ 14%]
+tests/test_inventory_sync.py::TestInventoryPullSync::test_pull_with_no_last_pulled_at_returns_empty PASSED [ 19%]
+tests/test_inventory_sync.py::TestInventoryPullSync::test_pull_returns_updated_inventory_levels PASSED [ 23%]
+tests/test_inventory_sync.py::TestInventoryPullSync::test_pull_returns_updated_stock_moves PASSED [ 28%]
+tests/test_inventory_sync.py::TestInventoryPushSync::test_push_creates_new_inventory_level PASSED [ 33%]
+tests/test_inventory_sync.py::TestInventoryPushSync::test_push_updates_existing_inventory_level PASSED [ 38%]
+tests/test_inventory_sync.py::TestInventoryPushSync::test_push_creates_stock_move_and_updates_level PASSED [ 42%]
+tests/test_inventory_sync.py::TestInventoryPushSync::test_push_creates_stock_move_and_creates_level PASSED [ 47%]
+tests/test_inventory_sync.py::TestInventoryPushSync::test_push_emits_outbox_events PASSED [ 52%]
+tests/test_inventory_sync.py::TestInventoryPushSync::test_push_handles_empty_changes_gracefully PASSED [ 57%]
+tests/test_inventory_sync.py::TestMoveTypeFromOrigin::test_receive_origin PASSED [ 61%]
+tests/test_inventory_sync.py::TestMoveTypeFromOrigin::test_issue_origin PASSED [ 66%]
+tests/test_inventory_sync.py::TestMoveTypeFromOrigin::test_spoilage_origin PASSED [ 71%]
+tests/test_inventory_sync.py::TestMoveTypeFromOrigin::test_order_origin PASSED [ 76%]
+tests/test_inventory_sync.py::TestMoveTypeFromOrigin::test_adjust_origin PASSED [ 80%]
+tests/test_inventory_sync.py::TestMoveTypeFromOrigin::test_count_origin PASSED [ 85%]
+tests/test_inventory_sync.py::TestMoveTypeFromOrigin::test_transfer_origin PASSED [ 90%]
+tests/test_inventory_sync.py::TestMoveTypeFromOrigin::test_none_origin PASSED [ 95%]
+tests/test_inventory_sync.py::TestMoveTypeFromOrigin::test_empty_origin PASSED [100%]
+
+================================== FAILURES ===================================
+________________________ test_health_check_returns_ok _________________________
+
+app = <fastapi.applications.FastAPI object at 0x000001B8FACB9400>
+
+    def test_health_check_returns_ok(app):
+        client = TestClient(app)
+    
+        response = client.get("/api/health")
+    
+        assert response.status_code == 200
+>       assert response.json() == {
+            "status": "ok",
+            "database": "Supabase Cloud Connection: Active",
+            "sync_engine": "WatermelonDB Ready",
+        }
+E       AssertionError: assert {'status': 'ok', 'database': 'Supabase Cloud Connection: Active', 'sync_engine': 'WatermelonDB Ready', 'auth': 'JWT RS256 with Redis Blacklist'} == {'status': 'ok', 'database': 'Supabase Cloud Connection: Active', 'sync_engine': 'WatermelonDB Ready'}
+E         
+E         Common items:
+E         {'database': 'Supabase Cloud Connection: Active',
+E          'status': 'ok',
+E          'sync_engine': 'WatermelonDB Ready'}
+E         Left contains 1 more item:
+E         {'auth': 'JWT RS256 with Redis Blacklist'}
+E         
+E         Full diff:
+E           {
+E         +     'auth': 'JWT RS256 with Redis Blacklist',
+E               'database': 'Supabase Cloud Connection: Active',
+E               'status': 'ok',
+E               'sync_engine': 'WatermelonDB Ready',
+E           }
+
+tests\test_api.py:100: AssertionError
+_____________________ test_pull_sync_returns_updated_rows _____________________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000001B8FB339220>
+
+    def test_pull_sync_returns_updated_rows(monkeypatch):
+        from src.modules.sales import router as sales_router
+    
+        session = FakeSession()
+        session.pull_orders = [
+            PosOrder(id="order-1", total_amount=Decimal("125.5000"), status="synced")
+        ]
+        session.pull_orders[0].updated_at = datetime(2026, 5, 11, 3, 30, tzinfo=timezone.utc)
+        session.pull_lines = [
+            PosOrderLine(
+                id="line-1",
+                order_id="order-1",
+                product_id="coffee",
+                quantity=Decimal("2.0000"),
+                price=Decimal("62.7500"),
+            )
+        ]
+        session.pull_lines[0].updated_at = datetime(2026, 5, 11, 3, 31, tzinfo=timezone.utc)
+    
+        monkeypatch.setattr(sales_router, "get_session", lambda: session)
+    
+        test_app = FastAPI()
+        test_app.include_router(sales_router.router, prefix="/api/sales")
+        client = TestClient(test_app)
+        response = client.get("/api/sales/sync", params={"lastPulledAt": 1710000000000})
+    
+>       assert response.status_code == 200
+E       assert 500 == 200
+E        +  where 500 = <Response [500 Internal Server Error]>.status_code
+
+tests\test_api.py:133: AssertionError
+________________ test_push_sync_inserts_order_line_and_outbox _________________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000001B8FB3A4CB0>
+
+    def test_push_sync_inserts_order_line_and_outbox(monkeypatch):
+        from src.modules.sales import router as sales_router
+    
+        session = FakeSession()
+        saved_events = []
+    
+        def fake_save_outbox(*, session, aggregate_type, aggregate_id, event_type, payload):
+            saved_events.append(
+                {
+                    "session": session,
+                    "aggregate_type": aggregate_type,
+                    "aggregate_id": aggregate_id,
+                    "event_type": event_type,
+                    "payload": payload,
+                }
+            )
+            return payload
+    
+        monkeypatch.setattr(sales_router, "get_session", lambda: session)
+        monkeypatch.setattr(sales_router, "save_outbox", fake_save_outbox)
+    
+        test_app = FastAPI()
+        test_app.include_router(sales_router.router, prefix="/api/sales")
+        client = TestClient(test_app)
+        response = client.post(
+            "/api/sales/sync",
+            json={
+                "lastPulledAt": None,
+                "changes": {
+                    "pos_order": {
+                        "created": [
+                            {
+                                "id": "order-1",
+                                "total_amount": "150.0000",
+                                "status": "created",
+                                "updated_at": 1715398200000,
+                            }
+                        ],
+                        "updated": [],
+                        "deleted": [],
+                    },
+                    "pos_order_line": {
+                        "created": [
+                            {
+                                "id": "line-1",
+                                "order_id": "order-1",
+                                "product_id": "coffee",
+                                "quantity": "2.0000",
+                                "price": "75.0000",
+                                "updated_at": 1715398200000,
+                            }
+                        ],
+                        "updated": [],
+                        "deleted": [],
+                    },
+                },
+            },
+        )
+    
+>       assert response.status_code == 200
+E       assert 500 == 200
+E        +  where 500 = <Response [500 Internal Server Error]>.status_code
+
+tests\test_api.py:200: AssertionError
+============================== warnings summary ===============================
+..\..\.venv\Lib\site-packages\fastapi\routing.py:211: 4 warnings
+tests/test_api.py: 59 warnings
+tests/test_inventory_sync.py: 18 warnings
+  D:\F&B SYSTEM\.venv\Lib\site-packages\fastapi\routing.py:211: DeprecationWarning: 'asyncio.iscoroutinefunction' is deprecated and slated for removal in Python 3.16; use inspect.iscoroutinefunction() instead
+    is_coroutine = asyncio.iscoroutinefunction(dependant.call)
+
+..\..\.venv\Lib\site-packages\starlette\_utils.py:17: 4 warnings
+tests/test_api.py: 76 warnings
+tests/test_inventory_sync.py: 63 warnings
+  D:\F&B SYSTEM\.venv\Lib\site-packages\starlette\_utils.py:17: DeprecationWarning: 'asyncio.iscoroutinefunction' is deprecated and slated for removal in Python 3.16; use inspect.iscoroutinefunction() instead
+    return asyncio.iscoroutinefunction(obj) or (
+
+tests/test_api.py::test_health_check_returns_ok
+  D:\F&B SYSTEM\truckflow-pos\backend\src\modules\print\router.py:11: PydanticDeprecatedSince20: Using extra keyword arguments on `Field` is deprecated and will be removed. Use `json_schema_extra` instead. (Extra keys: 'example'). Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.13/migration/
+    type: str = Field(..., example='network')
+
+tests/test_api.py: 3 warnings
+tests/test_inventory_sync.py: 9 warnings
+  D:\F&B SYSTEM\.venv\Lib\site-packages\starlette\_utils.py:18: DeprecationWarning: 'asyncio.iscoroutinefunction' is deprecated and slated for removal in Python 3.16; use inspect.iscoroutinefunction() instead
+    callable(obj) and asyncio.iscoroutinefunction(obj.__call__)
+
+tests/test_api.py: 3 warnings
+tests/test_inventory_sync.py: 9 warnings
+  D:\F&B SYSTEM\.venv\Lib\site-packages\httpx\_client.py:690: DeprecationWarning: The 'app' shortcut is now deprecated. Use the explicit style 'transport=WSGITransport(app=...)' instead.
+    warnings.warn(message, DeprecationWarning)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/test_api.py::test_health_check_returns_ok - AssertionError: assert {'status': 'ok', 'database': 'Supabase Cloud Connection: Active', 'sync_engine': 'WatermelonDB Ready', 'auth': 'JWT RS256 with Redis Blacklist'} == {'status': 'ok', 'database': 'Supabase Cloud Connection: Active', 'sync_engine': 'WatermelonDB Ready'}
+  
+  Common items:
+  {'database': 'Supabase Cloud Connection: Active',
+   'status': 'ok',
+   'sync_engine': 'WatermelonDB Ready'}
+  Left contains 1 more item:
+  {'auth': 'JWT RS256 with Redis Blacklist'}
+  
+  Full diff:
+    {
+  +     'auth': 'JWT RS256 with Redis Blacklist',
+        'database': 'Supabase Cloud Connection: Active',
+        'status': 'ok',
+        'sync_engine': 'WatermelonDB Ready',
+    }
+FAILED tests/test_api.py::test_pull_sync_returns_updated_rows - assert 500 == 200
+ +  where 500 = <Response [500 Internal Server Error]>.status_code
+FAILED tests/test_api.py::test_push_sync_inserts_order_line_and_outbox - assert 500 == 200
+ +  where 500 = <Response [500 Internal Server Error]>.status_code
+=========== 3 failed, 18 passed, 249 warnings in 521.44s (0:08:41) ============
+

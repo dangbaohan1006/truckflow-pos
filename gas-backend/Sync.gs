@@ -234,3 +234,114 @@ function saveOutboxEvent_(event) {
     created_at: String(new Date().getTime()),
   });
 }
+
+// ============================================================
+// Users Sync Protocol (pull/push for users table)
+// ============================================================
+
+/**
+ * POST /api/users/sync
+ * Push users from the device.
+ */
+function handleUserSync(body, headers) {
+  const session = validateSession_(headers);
+  if (!session) {
+    return { error: 'Unauthorized', status: 401 };
+  }
+  
+  const changes = body.changes || {};
+  const errors = [];
+  
+  const userChanges = changes.users || {};
+  const toProcess = [
+    ...(userChanges.created || []),
+    ...(userChanges.updated || []),
+  ];
+  
+  toProcess.forEach(user => {
+    try {
+      const userId = user.id;
+      if (!userId) return;
+      
+      const userData = {
+        id: userId,
+        username: user.username || '',
+        password: user.password || '',
+        name: user.display_name || '', // Map local display_name to backend name
+        role: user.role || 'STAFF',
+        status: user.status || 'ACTIVE',
+        employee_id: user.employee_id || '',
+        module_access: user.module_access || '[]',
+        created_at: String(user.created_at || new Date().getTime()),
+        updated_at: String(user.updated_at || new Date().getTime()),
+      };
+      
+      // Update permissions in backend based on role
+      let permissions = [];
+      if (ROLE_PERMISSIONS[userData.role]) {
+        permissions = ROLE_PERMISSIONS[userData.role];
+      }
+      userData.permissions = JSON.stringify(permissions);
+      
+      sheetUpsert(SHEETS.USERS, 'id', userData);
+      
+      // Emit outbox event
+      saveOutboxEvent_({
+        aggregate_type: 'User',
+        aggregate_id: userId,
+        event_type: 'UserUpserted',
+        payload: JSON.stringify(userData),
+      });
+    } catch (e) {
+      errors.push('Failed to process user ' + (user.username || user.id) + ': ' + e.toString());
+    }
+  });
+  
+  return {
+    success: true,
+    errors: errors.length > 0 ? errors : undefined,
+  };
+}
+
+/**
+ * GET /api/users/sync?lastPulledAt=<timestamp>
+ * Pull users from the server.
+ */
+function handleUserPull(params, headers) {
+  const session = validateSession_(headers);
+  if (!session) {
+    return { error: 'Unauthorized', status: 401 };
+  }
+  
+  const lastPulledAt = parseInt(params.lastPulledAt) || 0;
+  const now = new Date().getTime();
+  
+  // Get users updated after lastPulledAt
+  const allUsers = sheetGetAll(SHEETS.USERS);
+  const updatedUsers = allUsers.filter(u => {
+    const updatedAt = parseInt(u.updated_at || u.createdAt || 0) || 0;
+    return updatedAt > lastPulledAt;
+  });
+  
+  return {
+    changes: {
+      users: {
+        created: [],
+        updated: updatedUsers.map(u => ({
+          id: u.id,
+          username: u.username || '',
+          password: u.password || '',
+          display_name: u.name || '', // Map backend name to display_name
+          role: u.role || 'STAFF',
+          status: u.status || 'ACTIVE',
+          employee_id: u.employee_id || '',
+          module_access: u.module_access || '[]',
+          created_at: parseInt(u.created_at || u.createdAt || now) || now,
+          updated_at: parseInt(u.updated_at || u.created_at || u.createdAt || now) || now,
+        })),
+        deleted: [],
+      },
+    },
+    timestamp: now,
+  };
+}

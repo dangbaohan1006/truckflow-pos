@@ -1,0 +1,60 @@
+﻿============================= test session starts =============================
+platform win32 -- Python 3.14.3, pytest-9.0.3, pluggy-1.6.0 -- D:\F&B SYSTEM\.venv\Scripts\python.exe
+cachedir: .pytest_cache
+rootdir: d:\F&B SYSTEM\truckflow-pos\backend
+configfile: pyproject.toml
+plugins: anyio-3.7.1
+collecting ... collected 21 items
+
+tests/test_api.py::test_health_check_returns_ok PASSED                   [  4%]
+tests/test_api.py::test_pull_sync_returns_updated_rows PASSED            [  9%]
+tests/test_api.py::test_push_sync_inserts_order_line_and_outbox PASSED   [ 14%]
+tests/test_inventory_sync.py::TestInventoryPullSync::test_pull_with_no_last_pulled_at_returns_empty PASSED [ 19%]
+tests/test_inventory_sync.py::TestInventoryPullSync::test_pull_returns_updated_inventory_levels PASSED [ 23%]
+tests/test_inventory_sync.py::TestInventoryPullSync::test_pull_returns_updated_stock_moves PASSED [ 28%]
+tests/test_inventory_sync.py::TestInventoryPushSync::test_push_creates_new_inventory_level PASSED [ 33%]
+tests/test_inventory_sync.py::TestInventoryPushSync::test_push_updates_existing_inventory_level PASSED [ 38%]
+tests/test_inventory_sync.py::TestInventoryPushSync::test_push_creates_stock_move_and_updates_level PASSED [ 42%]
+tests/test_inventory_sync.py::TestInventoryPushSync::test_push_creates_stock_move_and_creates_level PASSED [ 47%]
+tests/test_inventory_sync.py::TestInventoryPushSync::test_push_emits_outbox_events PASSED [ 52%]
+tests/test_inventory_sync.py::TestInventoryPushSync::test_push_handles_empty_changes_gracefully PASSED [ 57%]
+tests/test_inventory_sync.py::TestMoveTypeFromOrigin::test_receive_origin PASSED [ 61%]
+tests/test_inventory_sync.py::TestMoveTypeFromOrigin::test_issue_origin PASSED [ 66%]
+tests/test_inventory_sync.py::TestMoveTypeFromOrigin::test_spoilage_origin PASSED [ 71%]
+tests/test_inventory_sync.py::TestMoveTypeFromOrigin::test_order_origin PASSED [ 76%]
+tests/test_inventory_sync.py::TestMoveTypeFromOrigin::test_adjust_origin PASSED [ 80%]
+tests/test_inventory_sync.py::TestMoveTypeFromOrigin::test_count_origin PASSED [ 85%]
+tests/test_inventory_sync.py::TestMoveTypeFromOrigin::test_transfer_origin PASSED [ 90%]
+tests/test_inventory_sync.py::TestMoveTypeFromOrigin::test_none_origin PASSED [ 95%]
+tests/test_inventory_sync.py::TestMoveTypeFromOrigin::test_empty_origin PASSED [100%]
+
+============================== warnings summary ===============================
+..\..\.venv\Lib\site-packages\fastapi\routing.py:211: 4 warnings
+tests/test_api.py: 59 warnings
+tests/test_inventory_sync.py: 18 warnings
+  D:\F&B SYSTEM\.venv\Lib\site-packages\fastapi\routing.py:211: DeprecationWarning: 'asyncio.iscoroutinefunction' is deprecated and slated for removal in Python 3.16; use inspect.iscoroutinefunction() instead
+    is_coroutine = asyncio.iscoroutinefunction(dependant.call)
+
+..\..\.venv\Lib\site-packages\starlette\_utils.py:17: 4 warnings
+tests/test_api.py: 74 warnings
+tests/test_inventory_sync.py: 63 warnings
+  D:\F&B SYSTEM\.venv\Lib\site-packages\starlette\_utils.py:17: DeprecationWarning: 'asyncio.iscoroutinefunction' is deprecated and slated for removal in Python 3.16; use inspect.iscoroutinefunction() instead
+    return asyncio.iscoroutinefunction(obj) or (
+
+tests/test_api.py::test_health_check_returns_ok
+  D:\F&B SYSTEM\truckflow-pos\backend\src\modules\print\router.py:11: PydanticDeprecatedSince20: Using extra keyword arguments on `Field` is deprecated and will be removed. Use `json_schema_extra` instead. (Extra keys: 'example'). Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.13/migration/
+    type: str = Field(..., example='network')
+
+tests/test_api.py: 3 warnings
+tests/test_inventory_sync.py: 9 warnings
+  D:\F&B SYSTEM\.venv\Lib\site-packages\starlette\_utils.py:18: DeprecationWarning: 'asyncio.iscoroutinefunction' is deprecated and slated for removal in Python 3.16; use inspect.iscoroutinefunction() instead
+    callable(obj) and asyncio.iscoroutinefunction(obj.__call__)
+
+tests/test_api.py: 3 warnings
+tests/test_inventory_sync.py: 9 warnings
+  D:\F&B SYSTEM\.venv\Lib\site-packages\httpx\_client.py:690: DeprecationWarning: The 'app' shortcut is now deprecated. Use the explicit style 'transport=WSGITransport(app=...)' instead.
+    warnings.warn(message, DeprecationWarning)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+====================== 21 passed, 247 warnings in 1.06s =======================
+

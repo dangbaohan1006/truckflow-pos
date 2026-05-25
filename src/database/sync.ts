@@ -119,7 +119,57 @@ export async function syncProvider() {
     },
   });
 
+  // Also sync users to/from backend
+  try {
+    console.log('Syncing users with backend...');
+    await syncUsersProvider();
+  } catch (err) {
+    console.error('Error synchronizing users with backend:', err);
+  }
+
   // Also publish menu to backend when sync is run
   await publishMenuToBackend();
+}
+
+export async function syncUsersProvider() {
+  await synchronize({
+    database,
+    pullChanges: async ({ lastPulledAt }) => {
+      const url = buildUrl('/api/users/sync', { lastPulledAt: String(lastPulledAt || 0) });
+      const response = await fetch(url, {
+        headers: buildAuthHeaders(),
+      });
+      if (!response.ok) {
+        throw new Error(await response.text());
+      }
+      const data = await response.json();
+      if (data && typeof data === 'object' && 'error' in data) {
+        throw new Error((data as any).error);
+      }
+      
+      const { changes, timestamp } = data;
+      return { changes, timestamp };
+    },
+    pushChanges: async ({ changes, lastPulledAt }) => {
+      const url = buildUrl('/api/users/sync');
+      const isGas = url.includes('script.google.com');
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': isGas ? 'text/plain;charset=utf-8' : 'application/json',
+          ...buildAuthHeaders(),
+        },
+        body: JSON.stringify({ changes, lastPulledAt }),
+      });
+      if (!response.ok) {
+        throw new Error(await response.text());
+      }
+      const data = await response.json();
+      if (data && typeof data === 'object' && 'error' in data) {
+        throw new Error((data as any).error);
+      }
+    },
+  });
 }
 

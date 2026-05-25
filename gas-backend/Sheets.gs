@@ -20,6 +20,18 @@ function getSheet_(sheetName) {
     if (headers) {
       sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
     }
+  } else {
+    // Ensure all headers from COLUMNS exist in the first row of the sheet
+    const headers = COLUMNS[sheetName.toUpperCase()];
+    if (headers) {
+      const lastCol = sheet.getLastColumn();
+      const existingHeaders = lastCol > 0 ? (sheet.getRange(1, 1, 1, lastCol).getValues()[0] || []) : [];
+      const missingHeaders = headers.filter(h => !existingHeaders.includes(h));
+      if (missingHeaders.length > 0) {
+        // Rewrite the entire header row to include all columns in COLUMNS
+        sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+      }
+    }
   }
   return sheet;
 }

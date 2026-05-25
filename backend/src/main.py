@@ -50,11 +50,14 @@ app.include_router(auth_router)
 from src.modules.customer_order.router import router as customer_order_router
 app.include_router(customer_order_router)
 
+# Print router (ESC/POS)
+from src.modules.print.router import router as print_router
+app.include_router(print_router)
+
 @app.get("/api/health")
 async def health_check():
     return {
         "status": "ok", 
-        "database": "Supabase Cloud Connection: Active", 
+        "database": "Supabase Cloud Connection: Active",
         "sync_engine": "WatermelonDB Ready",
-        "auth": "JWT RS256 with Redis Blacklist"
     }

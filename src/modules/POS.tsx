@@ -194,35 +194,65 @@ export default function POS() {
 
   const printReceipt = () => {
     if (!lastOrder) return;
-    const w = window.open('', '_blank', 'width=300,height=600');
-    if (!w) return;
-    w.document.write(`
-      <html><head><title>Hóa đơn</title>
-      <style>
-        body { font-family: monospace; font-size: 12px; padding: 10px; }
-        h2 { text-align: center; }
-        table { width: 100%; border-collapse: collapse; }
-        th, td { padding: 4px; text-align: left; border-bottom: 1px dashed #ccc; }
-        .total { font-weight: bold; font-size: 14px; }
-        .center { text-align: center; }
-      </style></head><body>
-      <h2>TRUCKFLOW POS</h2>
-      <p class="center">${formatDateTime(lastOrder.date)}</p>
-      <p class="center">Mã đơn: ${lastOrder.id.slice(-8).toUpperCase()}</p>
-      <hr/>
-      <table><tr><th>SP</th><th>SL</th><th>ĐG</th><th>TT</th></tr>
-        ${lastOrder.items.map((i: any) => `<tr><td>${i.productName}</td><td>${i.qty}</td><td>${formatCurrency(i.price)}</td><td>${formatCurrency(i.price * i.qty)}</td></tr>`).join('')}
-      </table>
-      <hr/>
-      <p>Tạm tính: ${formatCurrency(lastOrder.total + (lastOrder.total * parseFloat(lastOrder.discount || '0') / 100))}</p>
-      ${lastOrder.discount && parseFloat(lastOrder.discount) > 0 ? `<p>Giảm giá: ${lastOrder.discount}%</p>` : ''}
-      <p class="total">Tổng cộng: ${formatCurrency(lastOrder.total)}</p>
-      <p>Thanh toán: ${lastOrder.paymentMethod === 'cash' ? 'Tiền mặt' : lastOrder.paymentMethod === 'card' ? 'Thẻ' : 'QR'}</p>
-      ${lastOrder.paymentMethod === 'cash' ? `<p>Tiền khách: ${formatCurrency(lastOrder.cashReceived)}</p><p>Tiền thừa: ${formatCurrency(lastOrder.change)}</p>` : ''}
-      <hr/><p class="center">Cảm ơn quý khách!</p>
-      <script>window.print();window.close();</script></body></html>
-    `);
-    w.document.close();
+    (async () => {
+      const lines: string[] = [];
+      lines.push('TRUCKFLOW POS');
+      lines.push(formatDateTime(lastOrder.date));
+      lines.push('Mã đơn: ' + lastOrder.id.slice(-8).toUpperCase());
+      lines.push('-------------------------------');
+      lastOrder.items.forEach((i: any) => {
+        lines.push(`${i.productName} x${i.qty}`);
+        lines.push(`${formatCurrency(i.price)}  ${formatCurrency(i.price * i.qty)}`);
+      });
+      lines.push('-------------------------------');
+      lines.push('Tổng: ' + formatCurrency(lastOrder.total));
+      if (lastOrder.discount && parseFloat(lastOrder.discount) > 0) {
+        lines.push('Giảm giá: ' + lastOrder.discount + '%');
+      }
+      lines.push('Phương thức: ' + (lastOrder.paymentMethod === 'cash' ? 'Tiền mặt' : lastOrder.paymentMethod === 'card' ? 'Thẻ' : 'QR'));
+      if (lastOrder.paymentMethod === 'cash') {
+        lines.push('Tiền khách: ' + formatCurrency(lastOrder.cashReceived));
+        lines.push('Tiền thừa: ' + formatCurrency(lastOrder.change));
+      }
+      lines.push('');
+      lines.push('Cảm ơn quý khách!');
+
+      // Try to read printer config from localStorage, else let server use default env config
+      let printer = null;
+      try {
+        const cfg = localStorage.getItem('printerConfig');
+        if (cfg) printer = JSON.parse(cfg);
+      } catch (err) { /* ignore */ }
+
+      try {
+        const res = await fetch('/api/print', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ printer, lines }),
+        });
+        if (!res.ok) {
+          const text = await res.text();
+          toast.warning('In lỗi: ' + (text || res.statusText));
+          // fallback to window.print
+          const w = window.open('', '_blank', 'width=300,height=600');
+          if (!w) return;
+          w.document.write('<pre style="font-family: monospace;">' + lines.join('\n') + '</pre>');
+          w.document.close();
+          w.print();
+          w.close();
+          return;
+        }
+        toast.success('Lệnh in đã gửi');
+      } catch (err: any) {
+        toast.warning('Không thể kết nối máy in: sử dụng in trình duyệt');
+        const w = window.open('', '_blank', 'width=300,height=600');
+        if (!w) return;
+        w.document.write('<pre style="font-family: monospace;">' + lines.join('\n') + '</pre>');
+        w.document.close();
+        w.print();
+        w.close();
+      }
+    })();
   };
 
   return (

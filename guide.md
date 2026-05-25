@@ -179,3 +179,25 @@ Khi đó bạn chỉ cần chuyển backend, worker, DB proxy, và reverse proxy
 - [ ] Test sync offline-first qua `/api/sales/sync`.
 - [ ] Siết lại CORS chỉ cho domain Vercel thật.
 - [ ] Sau khi ổn định mới tính mua VPS.
+
+## Cấu hình máy in ESC/POS (nếu in từ backend)
+
+Nếu bạn muốn backend gửi lệnh in trực tiếp tới máy in nhiệt (ESC/POS) trên mạng, cấu hình các biến môi trường sau trên host backend (Render/VPS):
+
+```dotenv
+# Loại máy in mặc định để backend sử dụng khi frontend không gửi cấu hình
+PRINTER_TYPE=network   # hoặc 'usb'
+
+# Khi PRINTER_TYPE=network
+PRINTER_HOST=192.168.1.55
+PRINTER_PORT=9100
+
+# Khi PRINTER_TYPE=usb (nếu backend có quyền truy cập USB)
+PRINTER_IDVENDOR=0x04b8
+PRINTER_IDPRODUCT=0x0202
+```
+
+Ghi chú:
+- Backend mới có endpoint `POST /api/print` nhận payload `{ printer?, lines }`.
+- Nếu `printer` không được gửi từ frontend, backend sẽ dùng biến môi trường trên để in.
+- Nếu backend không thể truy cập máy in (ví dụ in tại máy nhân viên), cân nhắc chuyển sang phương án client-side (QZ Tray hoặc WebUSB) hoặc lưu cấu hình máy in trong frontend (`Settings` → `Máy in`).

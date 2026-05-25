@@ -23,6 +23,10 @@ function handleSyncMenu(body, headers) {
   }
 
   const menuItems = body.menu_items || [];
+  if (menuItems.length === 0) {
+    return { success: true, message: 'Không có dữ liệu menu để đồng bộ', skipped: true };
+  }
+
   const now = new Date().getTime();
 
   // Upsert all received menu items
@@ -59,7 +63,11 @@ function handleSyncMenu(body, headers) {
 function handleGetCustomerMenu() {
   const allItems = sheetGetAll(SHEETS.MENU_ITEMS);
   // Return only active items
-  const activeItems = allItems.filter(item => item.is_active === 'true');
+  const activeItems = allItems.filter(item => isTruthyValue_(item.is_active));
+
+  if (activeItems.length === 0) {
+    return getDefaultCustomerMenu_();
+  }
   
   return activeItems.map(item => ({
     id: item.id,
@@ -71,6 +79,30 @@ function handleGetCustomerMenu() {
     image: item.image || '',
     isActive: true,
   }));
+}
+
+function getDefaultCustomerMenu_() {
+  return [
+    { id: 'seed-menu-1', name: 'Cà phê sữa đá', price: 25000, category: 'Đồ uống', unit: 'ly', defaultDiscount: '0', image: '', isActive: true },
+    { id: 'seed-menu-2', name: 'Cà phê đen', price: 20000, category: 'Đồ uống', unit: 'ly', defaultDiscount: '0', image: '', isActive: true },
+    { id: 'seed-menu-3', name: 'Trà đào cam sả', price: 32000, category: 'Đồ uống', unit: 'ly', defaultDiscount: '5', image: '', isActive: true },
+    { id: 'seed-menu-4', name: 'Nước ép cam', price: 28000, category: 'Đồ uống', unit: 'ly', defaultDiscount: '0', image: '', isActive: true },
+    { id: 'seed-menu-5', name: 'Sinh tố bơ', price: 35000, category: 'Đồ uống', unit: 'ly', defaultDiscount: '0', image: '', isActive: true },
+    { id: 'seed-menu-6', name: 'Nước suối', price: 10000, category: 'Đồ uống', unit: 'chai', defaultDiscount: '0', image: '', isActive: true },
+    { id: 'seed-menu-7', name: 'Bánh mì thịt', price: 30000, category: 'Đồ ăn', unit: 'ổ', defaultDiscount: '0', image: '', isActive: true },
+    { id: 'seed-menu-8', name: 'Bánh mì chảo', price: 45000, category: 'Đồ ăn', unit: 'suất', defaultDiscount: '10', image: '', isActive: true },
+  ];
+}
+
+function isTruthyValue_(value) {
+  if (value === true) return true;
+  if (value === 1) return true;
+  if (value === '1') return true;
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+    return normalized === 'true' || normalized === 'yes' || normalized === 'y';
+  }
+  return false;
 }
 
 // ============================================================
