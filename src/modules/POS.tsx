@@ -290,25 +290,23 @@ export default function POS() {
         <div className="flex space-x-2">
           <button
             onClick={() => setActiveSubTab('checkout')}
-            className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all cursor-pointer flex items-center space-x-1.5 ${
+            className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all cursor-pointer ${
               activeSubTab === 'checkout'
                 ? 'bg-primary text-white shadow-md'
                 : 'bg-white border border-surface-zen text-text-secondary hover:bg-surface-zen'
             }`}
           >
-            <ShoppingCart size={16} />
-            <span>🛒 Tạo đơn bán hàng</span>
+            <span>Tạo đơn bán hàng</span>
           </button>
           <button
             onClick={() => setActiveSubTab('history')}
-            className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all cursor-pointer flex items-center space-x-1.5 ${
+            className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all cursor-pointer ${
               activeSubTab === 'history'
                 ? 'bg-accent text-white shadow-md'
                 : 'bg-white border border-surface-zen text-text-secondary hover:bg-surface-zen'
             }`}
           >
-            <FileText size={16} />
-            <span>📋 Lịch sử hôm nay ({todayOrders.length})</span>
+            <span>Lịch sử hôm nay ({todayOrders.length})</span>
           </button>
         </div>
       </div>

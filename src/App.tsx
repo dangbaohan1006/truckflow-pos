@@ -257,7 +257,22 @@ function AppContent() {
       {/* Mobile Top Header */}
       <div className="md:hidden h-14 bg-white border-b border-surface-zen px-4 flex items-center justify-between z-30 shrink-0 shadow-sm">
         <div className="flex items-center space-x-2">
-          <div className="w-8 h-8 bg-accent rounded-lg flex items-center justify-center">
+          <img 
+            src="/logo.png" 
+            alt="Logo" 
+            className="w-8 h-8 object-contain"
+            onError={(e) => {
+              const target = e.currentTarget;
+              if (target.src.endsWith('logo.png')) {
+                target.src = '/logo.svg';
+              } else {
+                target.style.display = 'none';
+                const fallback = document.getElementById('mobile-logo-fallback');
+                if (fallback) fallback.classList.remove('hidden');
+              }
+            }}
+          />
+          <div id="mobile-logo-fallback" className="hidden w-8 h-8 bg-accent rounded-lg flex items-center justify-center shrink-0">
             <Store size={18} className="text-white" />
           </div>
           <span className="font-bold text-primary-dark text-base">TruckFlow</span>
@@ -307,7 +322,22 @@ function AppContent() {
       <div className="hidden md:flex w-64 bg-white border-r border-surface-zen flex-col shrink-0">
         <div className="p-6 border-b border-surface-zen">
           <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 bg-accent rounded-xl flex items-center justify-center">
+            <img 
+              src="/logo.png" 
+              alt="Logo" 
+              className="w-10 h-10 object-contain"
+              onError={(e) => {
+                const target = e.currentTarget;
+                if (target.src.endsWith('logo.png')) {
+                  target.src = '/logo.svg';
+                } else {
+                  target.style.display = 'none';
+                  const fallback = document.getElementById('sidebar-logo-fallback');
+                  if (fallback) fallback.classList.remove('hidden');
+                }
+              }}
+            />
+            <div id="sidebar-logo-fallback" className="hidden w-10 h-10 bg-accent rounded-xl flex items-center justify-center shrink-0">
               <Store size={22} className="text-white" />
             </div>
             <div>
@@ -429,22 +459,24 @@ function AppContent() {
       </div>
 
       {/* Mobile Bottom Navigation Bar (hidden on desktop) */}
-      <div className="md:hidden fixed bottom-0 left-0 right-0 h-16 bg-white border-t border-surface-zen z-40 flex items-center justify-around shadow-[0_-4px_12px_rgba(0,0,0,0.05)] px-2 safe-bottom">
+      <div className="md:hidden fixed bottom-0 left-0 right-0 h-14 bg-white border-t border-surface-zen z-40 flex items-center justify-around shadow-[0_-4px_12px_rgba(0,0,0,0.05)] px-2 safe-bottom">
         {filteredModules.map((mod) => {
-          const Icon = ICON_MAP[mod.icon] || Store;
           const active = activeModule === mod.key;
           return (
             <button
               key={mod.key}
               onClick={() => setActiveModule(mod.key)}
-              className={`relative flex flex-col items-center justify-center flex-1 h-full py-1 transition-all ${
+              className={`relative flex flex-col items-center justify-center flex-1 h-full transition-all ${
                 active ? 'text-primary' : 'text-text-secondary hover:text-primary/70'
               }`}
             >
-              <Icon size={20} className={active ? 'scale-110 transition-transform font-bold' : ''} />
-              <span className="text-[10px] mt-1 font-semibold truncate max-w-[80px]">{mod.label}</span>
+              <span className={`text-[12px] font-bold tracking-wide uppercase transition-all ${
+                active ? 'scale-105 underline underline-offset-4 decoration-2' : ''
+              }`}>
+                {mod.label}
+              </span>
               {mod.key === 'customer-orders' && unreadCount > 0 && (
-                <span className="absolute top-2 right-1/2 translate-x-4 bg-accent text-white text-[9px] font-bold h-4 min-w-4 px-1 rounded-full flex items-center justify-center shadow-sm">
+                <span className="absolute top-2 right-4 bg-accent text-white text-[9px] font-bold h-4 min-w-4 px-1 rounded-full flex items-center justify-center shadow-sm">
                   {unreadCount}
                 </span>
               )}
