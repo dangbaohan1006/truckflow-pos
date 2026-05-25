@@ -70,11 +70,6 @@ const SidebarItem = ({ icon: Icon, label, active, onClick, badge }: any) => (
 
 function AppContent() {
   const { user, logout, isAdmin, hasAnyPermission } = useAuth();
-  const [activeModule, setActiveModule] = useState('pos');
-  const [isOnline, setIsOnline] = useState(navigator.onLine);
-  const [syncing, setSyncing] = useState(false);
-  const toast = useToast();
-
   // Determine if the URL path or hash indicates the Admin view (/admin or #/admin)
   const [isAdminView, setIsAdminView] = useState(() => {
     return (
@@ -84,6 +79,18 @@ function AppContent() {
     );
   });
 
+  const [activeModule, setActiveModule] = useState(() => {
+    const isCurrentAdmin =
+      window.location.pathname.startsWith('/admin') ||
+      window.location.hash.startsWith('#/admin') ||
+      window.location.hash === '#admin';
+    return isCurrentAdmin ? 'pos' : 'customer-orders';
+  });
+
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [syncing, setSyncing] = useState(false);
+  const toast = useToast();
+
   useEffect(() => {
     const handleUrlChange = () => {
       const isCurrentAdmin =
@@ -91,6 +98,7 @@ function AppContent() {
         window.location.hash.startsWith('#/admin') ||
         window.location.hash === '#admin';
       setIsAdminView(isCurrentAdmin);
+      setActiveModule(isCurrentAdmin ? 'pos' : 'customer-orders');
     };
 
     window.addEventListener('popstate', handleUrlChange);
@@ -102,8 +110,10 @@ function AppContent() {
   }, []);
 
   const navigateTo = (path: string) => {
+    const isTargetAdmin = path.startsWith('/admin') || path.startsWith('#/admin') || path === '#admin';
     window.history.pushState(null, '', path);
-    window.dispatchEvent(new Event('popstate'));
+    setIsAdminView(isTargetAdmin);
+    setActiveModule(isTargetAdmin ? 'pos' : 'customer-orders');
   };
 
   // Global customer order notifications polling
