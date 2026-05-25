@@ -11,6 +11,7 @@ import { Modal } from '../shared/components.js';
 import { useToast } from '../shared/ToastContext.js';
 import {
   getPendingOrders,
+  getAllOrders,
   getOrderDetail,
   confirmOrder,
   updateOrder,
@@ -40,10 +41,10 @@ export default function StaffOrders() {
   const [activeTab, setActiveTab] = useState<'pending' | 'all'>('pending');
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Fetch orders
+  // Fetch orders (fetches all orders reactively so both tabs and badge counts are always up-to-date)
   const fetchOrders = useCallback(async () => {
     try {
-      const data = await getPendingOrders();
+      const data = await getAllOrders();
       setOrders(data);
     } catch (e) {
       console.error('Failed to fetch orders:', e);
@@ -283,10 +284,12 @@ export default function StaffOrders() {
           <Clock size={36} className="mx-auto mb-3 animate-spin" />
           <p>Đang tải đơn hàng...</p>
         </div>
-      ) : orders.length === 0 ? (
+      ) : orders.filter((o) => activeTab === 'all' || o.status === 'PENDING').length === 0 ? (
         <div className="text-center py-12 text-text-secondary/50">
           <ClipboardList size={48} className="mx-auto mb-3 opacity-30" />
-          <p className="text-lg font-medium">Chưa có đơn hàng nào</p>
+          <p className="text-lg font-medium">
+            {activeTab === 'pending' ? 'Không có đơn hàng nào đang chờ' : 'Chưa có đơn hàng nào'}
+          </p>
           <p className="text-sm mt-1">Khách hàng sẽ gửi đơn qua QR code</p>
         </div>
       ) : (
@@ -358,6 +361,26 @@ export default function StaffOrders() {
                       className="px-4 py-2 border border-error-zen/30 text-error-zen rounded-lg text-sm hover:bg-error-zen/5 transition-all"
                     >
                       Hủy
+                    </button>
+                  </div>
+                )}
+
+                {order.status === 'CONFIRMED' && (
+                  <div className="flex space-x-2 mt-3">
+                    <button
+                      onClick={(e) => { e.stopPropagation(); handleComplete(order.id); }}
+                      className="flex-1 py-2 bg-success-zen text-white rounded-lg text-sm font-medium hover:bg-green-700 transition-all flex items-center justify-center space-x-2"
+                    >
+                      <CheckCircle size={16} />
+                      <span>Hoàn tất đơn</span>
+                    </button>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); printBill(order); }}
+                      className="px-4 py-2 border border-primary text-primary rounded-lg text-sm hover:bg-primary/5 transition-all flex items-center justify-center space-x-2"
+                      title="In hóa đơn"
+                    >
+                      <Printer size={16} />
+                      <span>In Bill</span>
                     </button>
                   </div>
                 )}
