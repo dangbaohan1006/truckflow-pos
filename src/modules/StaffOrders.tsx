@@ -86,7 +86,14 @@ export default function StaffOrders() {
   const handleViewDetail = async (order: CustomerOrder) => {
     try {
       const detail = await getOrderDetail(order.id);
-      setSelectedOrder(detail);
+      
+      // Clean and guarantee status is present and uppercase (self-healing fallback to order.status)
+      const sanitizedStatus = (detail.status || order.status || 'PENDING').toString().trim().toUpperCase() as any;
+      
+      setSelectedOrder({
+        ...detail,
+        status: sanitizedStatus
+      });
       setEditingItems(detail.items.map((item) => ({
         menu_item_id: item.menu_item_id,
         product_name: item.product_name,
