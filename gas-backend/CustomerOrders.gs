@@ -134,18 +134,19 @@ function handleCreateCustomerOrder(body) {
     updated_at: String(now),
   });
 
-  // 2. Insert order items
-  body.items.forEach(item => {
-    sheetInsert(SHEETS.CUSTOMER_ORDER_ITEMS, {
-      id: 'itm_' + Utilities.getUuid(),
-      order_id: orderId,
-      menu_item_id: item.menu_item_id || '',
-      product_name: item.product_name || '',
-      quantity: String(item.quantity || 1),
-      price: String(item.price || 0),
-      note: item.note || '',
-    });
-  });
+  // 2. Prepare items for batch insert
+  const itemsToInsert = body.items.map(item => ({
+    id: 'itm_' + Utilities.getUuid(),
+    order_id: orderId,
+    menu_item_id: item.menu_item_id || '',
+    product_name: item.product_name || '',
+    quantity: String(item.quantity || 1),
+    price: String(item.price || 0),
+    note: item.note || '',
+  }));
+
+  // Batch insert all order items in a single write operation!
+  sheetInsertBatch(SHEETS.CUSTOMER_ORDER_ITEMS, itemsToInsert);
 
   // 3. Create push notification for cashier POS
   sheetInsert(SHEETS.ORDER_NOTIFICATIONS, {

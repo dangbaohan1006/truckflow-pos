@@ -109,6 +109,22 @@ function sheetInsert(sheetName, data) {
 }
 
 /**
+ * Batch insert multiple rows. `dataArray` is an array of objects.
+ * Performs a single highly-optimized setValues operation.
+ */
+function sheetInsertBatch(sheetName, dataArray) {
+  if (!dataArray || dataArray.length === 0) return [];
+  
+  const sheet = getSheet_(sheetName);
+  const headers = COLUMNS[sheetName.toUpperCase()];
+  const rows = dataArray.map(data => headers.map(h => data[h] !== undefined ? data[h] : ''));
+  
+  const lastRow = sheet.getLastRow();
+  sheet.getRange(lastRow + 1, 1, rows.length, headers.length).setValues(rows);
+  return dataArray;
+}
+
+/**
  * Update a row identified by `columnName = value`.
  * `data` is an object with column-value pairs to update.
  * Returns the updated row as an object, or null if not found.
