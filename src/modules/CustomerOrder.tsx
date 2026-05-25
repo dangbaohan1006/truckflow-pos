@@ -97,6 +97,15 @@ export default function CustomerOrder() {
   // Load products from backend (since customer mobile device doesn't have direct access to cashier's local WatermelonDB)
   useEffect(() => {
     let isMounted = true;
+
+    // Load from cache instantly to eliminate initial render latency
+    const cached = localStorage.getItem('truckflow_customer_menu_cache');
+    if (cached) {
+      try {
+        setMenuItems(JSON.parse(cached));
+      } catch {}
+    }
+
     async function fetchMenu() {
       try {
         const response = await fetch(buildUrl('/api/customer-orders/menu'));
@@ -108,13 +117,7 @@ export default function CustomerOrder() {
           localStorage.setItem('truckflow_customer_menu_cache', JSON.stringify(data));
         }
       } catch (err) {
-        console.error('Failed to load menu from backend, falling back to local cache...', err);
-        const cached = localStorage.getItem('truckflow_customer_menu_cache');
-        if (cached && isMounted) {
-          try {
-            setMenuItems(JSON.parse(cached));
-          } catch {}
-        }
+        console.error('Failed to load menu from backend, using current cache...', err);
       }
     }
 

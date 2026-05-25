@@ -23,6 +23,8 @@ export default function POS() {
   const [menuIngredients, setMenuIngredients] = useState<any[]>([]);
   const [inventoryItems, setInventoryItems] = useState<any[]>([]);
   const [trucks, setTrucks] = useState<any[]>([]);
+  const [completedOrders, setCompletedOrders] = useState<any[]>([]);
+  const [orderLines, setOrderLines] = useState<any[]>([]);
   const [cart, setCart] = useState<any[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
@@ -35,13 +37,39 @@ export default function POS() {
   const [lastOrder, setLastOrder] = useState<any>(null);
   const [selectedTruck, setSelectedTruck] = useState('');
 
+  // Sub-tabs for Staff/Cashier Page: POS Checkout vs Today's History
+  const [activeSubTab, setActiveSubTab] = useState('checkout');
+  const [selectedHistoryOrder, setSelectedHistoryOrder] = useState<any | null>(null);
+
   useEffect(() => {
     const sub1 = database.get<MenuItem>('menu_items').query().observe().subscribe(setMenuItems);
     const sub2 = database.get<MenuIngredient>('menu_ingredients').query().observe().subscribe(setMenuIngredients);
     const sub3 = database.get<InventoryItem>('inventory_items').query().observe().subscribe(setInventoryItems);
     const sub4 = database.get<TruckModel>('trucks').query().observe().subscribe(setTrucks);
-    return () => { sub1.unsubscribe(); sub2.unsubscribe(); sub3.unsubscribe(); sub4.unsubscribe(); };
+    const sub5 = database.get<SalesOrder>('pos_order').query().observe().subscribe(setCompletedOrders);
+    const sub6 = database.get<SalesOrderLine>('pos_order_line').query().observe().subscribe(setOrderLines);
+    return () => {
+      sub1.unsubscribe();
+      sub2.unsubscribe();
+      sub3.unsubscribe();
+      sub4.unsubscribe();
+      sub5.unsubscribe();
+      sub6.unsubscribe();
+    };
   }, []);
+
+  // Filter completed orders for today
+  const todayOrders = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return completedOrders
+      .filter((o: any) => o.createdAt >= today.getTime())
+      .sort((a, b) => b.createdAt - a.createdAt);
+  }, [completedOrders]);
+
+  const todayTotalRevenue = useMemo(() => {
+    return todayOrders.reduce((sum, order) => sum + parseFloat(order.totalAmount || '0'), 0);
+  }, [todayOrders]);
 
   // Only show active menu items
   const activeMenuItems = useMemo(() => menuItems.filter((i: any) => i.isActive !== false), [menuItems]);
@@ -256,119 +284,227 @@ export default function POS() {
   };
 
   return (
-    <div className="flex h-full space-x-6">
-      <div className="flex-1 flex flex-col space-y-4">
-        <div className="flex space-x-3">
-          <div className="flex-1 relative">
-            <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary" />
-            <input type="text" placeholder="Tìm kiếm món..." value={searchTerm}
-              onChange={(e: any) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2.5 bg-white border border-surface-zen rounded-lg focus:ring-2 focus:ring-primary/30 outline-none" />
-          </div>
-          <select value={selectedTruck} onChange={(e: any) => setSelectedTruck(e.target.value)}
-            className="px-3 py-2 border border-surface-zen rounded-lg text-sm bg-white outline-none">
-            <option value="">Kho tổng</option>
-            {trucks.filter((t: any) => t.status === 'ACTIVE').map((t: any) => (
-              <option key={t.id} value={t.id}>{t.name} ({t.code})</option>
-            ))}
-          </select>
-        </div>
-        <div className="flex space-x-2 overflow-x-auto pb-2">
-          {categories.map((cat: string) => (
-            <button key={cat} onClick={() => setSelectedCategory(cat)}
-              className={`px-4 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-all ${selectedCategory === cat ? 'bg-primary text-white shadow-sm' : 'bg-white border border-surface-zen text-text-secondary hover:border-primary/30'}`}>
-              {cat === 'all' ? 'Tất cả' : cat}
-            </button>
-          ))}
-        </div>
-        <div className="flex-1 overflow-y-auto">
-          <div className="grid grid-cols-3 gap-4">
-            {filteredItems.map((item: any) => (
-              <motion.button whileTap={{ scale: 0.95 }} key={item.id} onClick={() => addToCart(item)}
-                className="p-4 bg-white rounded-xl shadow-sm border border-gray-200/50 flex flex-col items-center space-y-2 hover:shadow-md transition-all hover:border-primary/30">
-                <div className="w-14 h-14 bg-primary/10 text-primary rounded-full flex items-center justify-center text-xl font-bold">
-                  <Utensils size={24} />
-                </div>
-                <span className="font-semibold text-text-main text-sm text-center">{item.name}</span>
-                <span className="text-sm font-bold text-accent">{formatCurrency(parseFloat(item.price || '0'))}</span>
-                {item.defaultDiscount && parseFloat(item.defaultDiscount) > 0 && (
-                  <span className="text-xs text-success-zen">Giảm {item.defaultDiscount}%</span>
-                )}
-              </motion.button>
-            ))}
-            {filteredItems.length === 0 && (
-              <div className="col-span-3 text-center py-12 text-gray-400">
-                {searchTerm ? 'Không tìm thấy món' : 'Chưa có món nào trong menu'}
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-
-      <div className="w-96 bg-white rounded-2xl shadow-xl flex flex-col border border-surface-zen">
-        <div className="p-6 pb-4 border-b border-surface-zen">
-          <div className="flex items-center space-x-2">
-            <ShoppingCart className="text-accent" />
-            <h2 className="text-xl font-bold text-primary-dark">Đơn hàng</h2>
-            {cart.length > 0 && <span className="bg-accent text-white text-xs font-bold px-2 py-0.5 rounded-full ml-auto">{cart.length} món</span>}
-          </div>
-          {selectedTruck && (
-            <div className="mt-2 flex items-center space-x-1 text-xs text-primary bg-primary/5 px-2 py-1 rounded-lg">
-              <TruckIcon size={12} />
-              <span>{trucks.find((t: any) => t.id === selectedTruck)?.name || 'Xe'}</span>
-            </div>
-          )}
-        </div>
-        <div className="flex-1 overflow-y-auto p-4 space-y-3">
-          {cart.map((item: any) => (
-            <div key={item.menuItemId} className="bg-surface-zen rounded-xl p-3">
-              <div className="flex justify-between items-start mb-2">
-                <div className="flex-1">
-                  <p className="font-medium text-text-main">{item.productName}</p>
-                  <p className="text-xs text-text-secondary">{formatCurrency(item.price)} / đơn vị</p>
-                </div>
-                <button onClick={() => removeFromCart(item.menuItemId)} className="text-error-zen/50 hover:text-error-zen p-1"><Trash2 size={14} /></button>
-              </div>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-2 bg-white rounded-lg border border-surface-zen">
-                  <button onClick={() => updateQty(item.menuItemId, -1)} className="p-1.5 hover:bg-surface-zen rounded-l-lg"><Minus size={14} /></button>
-                  <span className="px-3 font-bold text-text-main min-w-[30px] text-center">{item.qty}</span>
-                  <button onClick={() => updateQty(item.menuItemId, 1)} className="p-1.5 hover:bg-surface-zen rounded-r-lg"><Plus size={14} /></button>
-                </div>
-                <span className="font-bold text-accent">{formatCurrency(item.price * item.qty)}</span>
-              </div>
-            </div>
-          ))}
-          {cart.length === 0 && (
-            <div className="text-center py-12 text-text-secondary/50">
-              <ShoppingCart size={48} className="mx-auto mb-3 opacity-30" />
-              <p>Giỏ hàng trống</p>
-              <p className="text-xs mt-1">Chọn món từ menu để bắt đầu</p>
-            </div>
-          )}
-        </div>
-        <div className="p-6 pt-4 border-t border-surface-zen space-y-3">
-          <div className="flex items-center space-x-2">
-            <Percent size={16} className="text-text-secondary" />
-            <input type="number" placeholder="Giảm giá %" value={discount} onChange={(e: any) => setDiscount(e.target.value)}
-              className="flex-1 px-3 py-1.5 text-sm border border-surface-zen rounded-lg outline-none" />
-          </div>
-          <div className="flex items-center space-x-2">
-            <FileText size={16} className="text-text-secondary" />
-            <input type="text" placeholder="Ghi chú..." value={note} onChange={(e: any) => setNote(e.target.value)}
-              className="flex-1 px-3 py-1.5 text-sm border border-surface-zen rounded-lg outline-none" />
-          </div>
-          <div className="flex justify-between text-lg font-bold pt-2">
-            <span>Tổng cộng</span>
-            <span className="text-accent">{formatCurrency(total)}</span>
-          </div>
-          <button disabled={cart.length === 0} onClick={() => setShowPayment(true)}
-            className="w-full py-4 bg-accent text-white rounded-xl font-bold shadow-lg shadow-accent/20 hover:bg-primary-dark active:scale-[0.98] transition-all disabled:opacity-50 disabled:shadow-none">
-            THANH TOÁN - {formatCurrency(total)}
+    <div className="space-y-6 h-full flex flex-col">
+      {/* Tab Selection */}
+      <div className="flex items-center justify-between border-b border-surface-zen pb-4">
+        <div className="flex space-x-2">
+          <button
+            onClick={() => setActiveSubTab('checkout')}
+            className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all cursor-pointer flex items-center space-x-1.5 ${
+              activeSubTab === 'checkout'
+                ? 'bg-primary text-white shadow-md'
+                : 'bg-white border border-surface-zen text-text-secondary hover:bg-surface-zen'
+            }`}
+          >
+            <ShoppingCart size={16} />
+            <span>🛒 Tạo đơn bán hàng</span>
+          </button>
+          <button
+            onClick={() => setActiveSubTab('history')}
+            className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all cursor-pointer flex items-center space-x-1.5 ${
+              activeSubTab === 'history'
+                ? 'bg-accent text-white shadow-md'
+                : 'bg-white border border-surface-zen text-text-secondary hover:bg-surface-zen'
+            }`}
+          >
+            <FileText size={16} />
+            <span>📋 Lịch sử hôm nay ({todayOrders.length})</span>
           </button>
         </div>
       </div>
 
+      {activeSubTab === 'history' ? (
+        /* TODAY'S SALES HISTORY SUB-TAB */
+        <div className="flex-1 flex flex-col space-y-4 overflow-hidden">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="bg-white rounded-xl p-5 shadow-sm border border-surface-zen flex items-center justify-between">
+              <div>
+                <span className="text-sm text-text-secondary font-medium">Doanh thu hôm nay</span>
+                <div className="text-2xl font-bold text-accent mt-1">{formatCurrency(todayTotalRevenue)}</div>
+              </div>
+              <div className="w-12 h-12 bg-accent/10 text-accent rounded-xl flex items-center justify-center">
+                <Banknote size={24} />
+              </div>
+            </div>
+            <div className="bg-white rounded-xl p-5 shadow-sm border border-surface-zen flex items-center justify-between">
+              <div>
+                <span className="text-sm text-text-secondary font-medium">Số đơn đã hoàn tất</span>
+                <div className="text-2xl font-bold text-primary mt-1">{todayOrders.length} đơn</div>
+              </div>
+              <div className="w-12 h-12 bg-primary/10 text-primary rounded-xl flex items-center justify-center">
+                <FileText size={24} />
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-xl shadow-sm border border-surface-zen overflow-hidden flex-1 flex flex-col min-h-0">
+            <div className="p-4 border-b border-surface-zen flex justify-between items-center bg-white z-10">
+              <h3 className="font-bold text-primary-dark">Lịch sử đơn hàng hôm nay ({todayOrders.length})</h3>
+            </div>
+            <div className="flex-1 overflow-y-auto min-h-0">
+              <table className="w-full text-left border-collapse">
+                <thead className="bg-surface-zen sticky top-0 z-10 shadow-sm">
+                  <tr>
+                    <th className="p-4 text-sm font-semibold text-text-secondary">Mã đơn</th>
+                    <th className="p-4 text-sm font-semibold text-text-secondary">Thời gian</th>
+                    <th className="p-4 text-sm font-semibold text-text-secondary">Thanh toán</th>
+                    <th className="p-4 text-sm font-semibold text-text-secondary text-right">Tổng tiền</th>
+                    <th className="p-4 text-sm font-semibold text-text-secondary text-center">Hành động</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {todayOrders.map((order: any) => (
+                    <tr key={order.id} className="border-t border-surface-zen hover:bg-surface-zen/30 transition-colors">
+                      <td className="p-4 text-sm font-bold text-primary">{order.id.slice(-8).toUpperCase()}</td>
+                      <td className="p-4 text-sm">{formatDateTime(order.createdAt)}</td>
+                      <td className="p-4">
+                        <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
+                          order.paymentMethod === 'cash' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'
+                        }`}>
+                          {order.paymentMethod === 'cash' ? 'Tiền mặt' : order.paymentMethod === 'card' ? 'Thẻ' : 'QR Code'}
+                        </span>
+                      </td>
+                      <td className="p-4 text-sm font-bold text-accent text-right">{formatCurrency(parseFloat(order.totalAmount))}</td>
+                      <td className="p-4 text-center">
+                        <button
+                          onClick={() => setSelectedHistoryOrder(order)}
+                          className="px-3 py-1.5 bg-primary/10 text-primary hover:bg-primary hover:text-white rounded-lg text-xs font-bold transition-all cursor-pointer"
+                        >
+                          Xem & In lại
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                  {todayOrders.length === 0 && (
+                    <tr>
+                      <td colSpan={5} className="text-center py-12 text-text-secondary/50">
+                        Chưa có đơn hàng nào được bán hôm nay
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      ) : (
+        /* POS CHECKOUT SUB-TAB */
+        <div className="flex-1 flex space-x-6 overflow-hidden min-h-0">
+          <div className="flex-1 flex flex-col space-y-4 overflow-hidden">
+            <div className="flex space-x-3">
+              <div className="flex-1 relative">
+                <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary" />
+                <input type="text" placeholder="Tìm kiếm món..." value={searchTerm}
+                  onChange={(e: any) => setSearchTerm(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2.5 bg-white border border-surface-zen rounded-lg focus:ring-2 focus:ring-primary/30 outline-none" />
+              </div>
+              <select value={selectedTruck} onChange={(e: any) => setSelectedTruck(e.target.value)}
+                className="px-3 py-2 border border-surface-zen rounded-lg text-sm bg-white outline-none">
+                <option value="">Kho tổng</option>
+                {trucks.filter((t: any) => t.status === 'ACTIVE').map((t: any) => (
+                  <option key={t.id} value={t.id}>{t.name} ({t.code})</option>
+                ))}
+              </select>
+            </div>
+            <div className="flex space-x-2 overflow-x-auto pb-2 shrink-0">
+              {categories.map((cat: string) => (
+                <button key={cat} onClick={() => setSelectedCategory(cat)}
+                  className={`px-4 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-all cursor-pointer ${selectedCategory === cat ? 'bg-primary text-white shadow-sm' : 'bg-white border border-surface-zen text-text-secondary hover:border-primary/30'}`}>
+                  {cat === 'all' ? 'Tất cả' : cat}
+                </button>
+              ))}
+            </div>
+            <div className="flex-1 overflow-y-auto min-h-0">
+              <div className="grid grid-cols-3 gap-4">
+                {filteredItems.map((item: any) => (
+                  <motion.button whileTap={{ scale: 0.95 }} key={item.id} onClick={() => addToCart(item)}
+                    className="p-4 bg-white rounded-xl shadow-sm border border-gray-200/50 flex flex-col items-center space-y-2 hover:shadow-md transition-all hover:border-primary/30 cursor-pointer">
+                    <div className="w-14 h-14 bg-primary/10 text-primary rounded-full flex items-center justify-center text-xl font-bold">
+                      <Utensils size={24} />
+                    </div>
+                    <span className="font-semibold text-text-main text-sm text-center">{item.name}</span>
+                    <span className="text-sm font-bold text-accent">{formatCurrency(parseFloat(item.price || '0'))}</span>
+                    {item.defaultDiscount && parseFloat(item.defaultDiscount) > 0 && (
+                      <span className="text-xs text-success-zen">Giảm {item.defaultDiscount}%</span>
+                    )}
+                  </motion.button>
+                ))}
+                {filteredItems.length === 0 && (
+                  <div className="col-span-3 text-center py-12 text-gray-400">
+                    {searchTerm ? 'Không tìm thấy món' : 'Chưa có món nào trong menu'}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <div className="w-96 bg-white rounded-2xl shadow-xl flex flex-col border border-surface-zen overflow-hidden shrink-0">
+            <div className="p-6 pb-4 border-b border-surface-zen">
+              <div className="flex items-center space-x-2">
+                <ShoppingCart className="text-accent" />
+                <h2 className="text-xl font-bold text-primary-dark">Đơn hàng</h2>
+                {cart.length > 0 && <span className="bg-accent text-white text-xs font-bold px-2 py-0.5 rounded-full ml-auto">{cart.length} món</span>}
+              </div>
+              {selectedTruck && (
+                <div className="mt-2 flex items-center space-x-1 text-xs text-primary bg-primary/5 px-2 py-1 rounded-lg">
+                  <TruckIcon size={12} />
+                  <span>{trucks.find((t: any) => t.id === selectedTruck)?.name || 'Xe'}</span>
+                </div>
+              )}
+            </div>
+            <div className="flex-1 overflow-y-auto p-4 space-y-3 min-h-0">
+              {cart.map((item: any) => (
+                <div key={item.menuItemId} className="bg-surface-zen rounded-xl p-3">
+                  <div className="flex justify-between items-start mb-2">
+                    <div className="flex-1">
+                      <p className="font-medium text-text-main">{item.productName}</p>
+                      <p className="text-xs text-text-secondary">{formatCurrency(item.price)} / đơn vị</p>
+                    </div>
+                    <button onClick={() => removeFromCart(item.menuItemId)} className="text-error-zen/50 hover:text-error-zen p-1 cursor-pointer"><Trash2 size={14} /></button>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-2 bg-white rounded-lg border border-surface-zen">
+                      <button onClick={() => updateQty(item.menuItemId, -1)} className="p-1.5 hover:bg-surface-zen rounded-l-lg cursor-pointer"><Minus size={14} /></button>
+                      <span className="px-3 font-bold text-text-main min-w-[30px] text-center">{item.qty}</span>
+                      <button onClick={() => updateQty(item.menuItemId, 1)} className="p-1.5 hover:bg-surface-zen rounded-r-lg cursor-pointer"><Plus size={14} /></button>
+                    </div>
+                    <span className="font-bold text-accent">{formatCurrency(item.price * item.qty)}</span>
+                  </div>
+                </div>
+              ))}
+              {cart.length === 0 && (
+                <div className="text-center py-12 text-text-secondary/50">
+                  <ShoppingCart size={48} className="mx-auto mb-3 opacity-30" />
+                  <p>Giỏ hàng trống</p>
+                  <p className="text-xs mt-1">Chọn món từ menu để bắt đầu</p>
+                </div>
+              )}
+            </div>
+            <div className="p-6 pt-4 border-t border-surface-zen space-y-3 shrink-0">
+              <div className="flex items-center space-x-2">
+                <Percent size={16} className="text-text-secondary" />
+                <input type="number" placeholder="Giảm giá %" value={discount} onChange={(e: any) => setDiscount(e.target.value)}
+                  className="flex-1 px-3 py-1.5 text-sm border border-surface-zen rounded-lg outline-none bg-white" />
+              </div>
+              <div className="flex items-center space-x-2">
+                <FileText size={16} className="text-text-secondary" />
+                <input type="text" placeholder="Ghi chú..." value={note} onChange={(e: any) => setNote(e.target.value)}
+                  className="flex-1 px-3 py-1.5 text-sm border border-surface-zen rounded-lg outline-none bg-white" />
+              </div>
+              <div className="flex justify-between text-lg font-bold pt-2 border-t border-dashed border-surface-zen">
+                <span>Tổng cộng</span>
+                <span className="text-accent">{formatCurrency(total)}</span>
+              </div>
+              <button disabled={cart.length === 0} onClick={() => setShowPayment(true)}
+                className="w-full py-4 bg-accent text-white rounded-xl font-bold shadow-lg shadow-accent/20 hover:bg-primary-dark active:scale-[0.98] transition-all disabled:opacity-50 disabled:shadow-none cursor-pointer">
+                THANH TOÁN - {formatCurrency(total)}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Payment Modals & Reprint overlays */}
       {showPayment && (
         <Modal title="Thanh toán" onClose={() => setShowPayment(false)}>
           <div className="space-y-4">
@@ -385,7 +521,7 @@ export default function POS() {
                   { value: 'qr', label: 'QR Code', icon: QrCode },
                 ].map((pm: any) => (
                   <button key={pm.value} onClick={() => setPaymentMethod(pm.value)}
-                    className={`flex flex-col items-center p-3 rounded-xl border-2 transition-all ${paymentMethod === pm.value ? 'border-primary bg-primary/5 text-primary-dark' : 'border-surface-zen text-text-secondary hover:border-primary/30'}`}>
+                    className={`flex flex-col items-center p-3 rounded-xl border-2 transition-all cursor-pointer ${paymentMethod === pm.value ? 'border-primary bg-primary/5 text-primary-dark' : 'border-surface-zen text-text-secondary hover:border-primary/30'}`}>
                     <pm.icon size={24} className="mb-1" /><span className="text-xs font-medium">{pm.label}</span>
                   </button>
                 ))}
@@ -400,7 +536,7 @@ export default function POS() {
               </div>
             )}
             <button onClick={processPayment} disabled={paymentMethod === 'cash' && parseFloat(cashReceived) < total}
-              className="w-full py-4 bg-accent text-white rounded-xl font-bold shadow-lg hover:bg-primary-dark transition-all disabled:opacity-50">
+              className="w-full py-4 bg-accent text-white rounded-xl font-bold shadow-lg hover:bg-primary-dark transition-all disabled:opacity-50 cursor-pointer">
               XÁC NHẬN THANH TOÁN
             </button>
           </div>
@@ -429,10 +565,61 @@ export default function POS() {
               </div>
             </div>
             <div className="flex space-x-3">
-              <button onClick={printReceipt} className="flex-1 py-3 bg-primary text-white rounded-xl font-medium hover:bg-primary-dark transition-all flex items-center justify-center space-x-2">
+              <button onClick={printReceipt} className="flex-1 py-3 bg-primary text-white rounded-xl font-medium hover:bg-primary-dark transition-all flex items-center justify-center space-x-2 cursor-pointer">
                 <Printer size={18} /><span>In hóa đơn</span>
               </button>
-              <button onClick={() => setShowReceipt(false)} className="flex-1 py-3 border border-surface-zen text-text-secondary rounded-xl font-medium hover:bg-surface-zen transition-all">Đóng</button>
+              <button onClick={() => setShowReceipt(false)} className="flex-1 py-3 border border-surface-zen text-text-secondary rounded-xl font-medium hover:bg-surface-zen transition-all cursor-pointer">Đóng</button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {selectedHistoryOrder && (
+        <Modal title={`Chi tiết đơn ${selectedHistoryOrder.id.slice(-8).toUpperCase()}`} onClose={() => setSelectedHistoryOrder(null)}>
+          <div className="space-y-4">
+            <div className="bg-surface-zen rounded-xl p-4 space-y-1.5">
+              <div className="flex justify-between text-sm"><span>Thời gian:</span><span className="font-bold text-text-main">{formatDateTime(selectedHistoryOrder.createdAt)}</span></div>
+              <div className="flex justify-between text-sm"><span>Phương thức:</span><span className="font-bold text-text-main">{
+                selectedHistoryOrder.paymentMethod === 'cash' ? 'Tiền mặt' : selectedHistoryOrder.paymentMethod === 'card' ? 'Thẻ' : 'QR Code'
+              }</span></div>
+              {selectedHistoryOrder.note && <div className="flex justify-between text-sm"><span>Ghi chú:</span><span className="font-semibold text-text-main">{selectedHistoryOrder.note}</span></div>}
+            </div>
+            <div className="border-t border-dashed border-surface-zen pt-4 space-y-2">
+              {orderLines.filter(line => line.orderId === selectedHistoryOrder.id).map((line: any, idx: number) => (
+                <div key={idx} className="flex justify-between text-sm">
+                  <span>{line.productName} x{line.quantity}</span>
+                  <span className="font-semibold">{formatCurrency(parseFloat(line.price) * parseFloat(line.quantity))}</span>
+                </div>
+              ))}
+              <div className="border-t border-dashed border-surface-zen pt-2 flex justify-between font-bold text-base">
+                <span>Tổng cộng</span>
+                <span className="text-accent">{formatCurrency(parseFloat(selectedHistoryOrder.totalAmount))}</span>
+              </div>
+            </div>
+            <div className="flex space-x-3">
+              <button onClick={() => {
+                const items = orderLines.filter(line => line.orderId === selectedHistoryOrder.id).map(line => ({
+                  productName: line.productName,
+                  qty: parseInt(line.quantity),
+                  price: parseFloat(line.price),
+                }));
+                const formattedOrder = {
+                  id: selectedHistoryOrder.id,
+                  items,
+                  total: parseFloat(selectedHistoryOrder.totalAmount),
+                  paymentMethod: selectedHistoryOrder.paymentMethod,
+                  cashReceived: parseFloat(selectedHistoryOrder.cashReceived || '0'),
+                  change: parseFloat(selectedHistoryOrder.changeAmount || '0'),
+                  discount: selectedHistoryOrder.discount,
+                  note: selectedHistoryOrder.note,
+                  date: selectedHistoryOrder.createdAt,
+                };
+                setLastOrder(formattedOrder);
+                setTimeout(printReceipt, 100);
+              }} className="flex-1 py-3 bg-primary text-white rounded-xl font-medium hover:bg-primary-dark transition-all flex items-center justify-center space-x-2 cursor-pointer">
+                <Printer size={18} /><span>In lại hóa đơn</span>
+              </button>
+              <button onClick={() => setSelectedHistoryOrder(null)} className="flex-1 py-3 border border-surface-zen text-text-secondary rounded-xl font-medium hover:bg-surface-zen transition-all cursor-pointer">Đóng</button>
             </div>
           </div>
         </Modal>

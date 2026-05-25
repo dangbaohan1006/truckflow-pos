@@ -1,15 +1,28 @@
 {
   "short_name": "TruckFlow",
-  "name": "TruckFlow Food Truck POS",
+  "name": "TruckFlow Staff & POS Portal",
+  "description": "Premium Food Truck POS & Staff Attendance System",
   "icons": [
     {
-      "src": "favicon.ico",
-      "sizes": "64x64 32x32 24x24 16x16",
-      "type": "image/x-icon"
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
     }
   ],
-  "start_url": ".",
+  "start_url": "./",
   "display": "standalone",
-  "theme_color": "#f97316",
-  "background_color": "#ffffff"
+  "orientation": "any",
+  "theme_color": "#8E9775",
+  "background_color": "#FDFCF8"
 }

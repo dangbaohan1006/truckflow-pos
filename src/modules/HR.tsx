@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import {
   Users, UserPlus, UserCheck, CalendarDays, HandCoins,
   Plus, Search, Clock, DollarSign, Briefcase,
-  Edit3, Trash2, Truck as TruckIcon, Building2, Filter,
+  Edit3, Trash2, Truck as TruckIcon, Building2, Filter, LogIn, LogOut, CheckCircle2,
 } from 'lucide-react';
 import { database } from '../database/index.js';
 import Employee from '../database/models/Employee.js';
@@ -12,14 +12,32 @@ import TruckModel from '../database/models/Truck.js';
 import { formatCurrency, formatDate, formatDateTime, generateId } from '../shared/utils.js';
 import { Modal, Input, Select, StatCard, TabButton } from '../shared/components.js';
 import { useToast } from '../shared/ToastContext.js';
+import { useAuth } from '../auth/AuthContext.js';
 
 export default function HR() {
   const toast = useToast();
+  const { user } = useAuth();
   const [employees, setEmployees] = useState<any[]>([]);
   const [attendances, setAttendances] = useState<any[]>([]);
   const [advances, setAdvances] = useState<any[]>([]);
   const [trucks, setTrucks] = useState<any[]>([]);
-  const [activeTab, setActiveTab] = useState('employees');
+
+  const isAdminView = useMemo(() => {
+    return (
+      window.location.pathname.startsWith('/admin') ||
+      window.location.hash.startsWith('#/admin') ||
+      window.location.hash === '#admin'
+    );
+  }, []);
+
+  const [activeTab, setActiveTab] = useState(() => {
+    const isCurrentAdmin =
+      window.location.pathname.startsWith('/admin') ||
+      window.location.hash.startsWith('#/admin') ||
+      window.location.hash === '#admin';
+    return isCurrentAdmin ? 'employees' : 'attendance';
+  });
+
   const [searchTerm, setSearchTerm] = useState('');
   const [departmentFilter, setDepartmentFilter] = useState('all');
   const [showAddEmployee, setShowAddEmployee] = useState(false);
@@ -29,6 +47,15 @@ export default function HR() {
   const [empData, setEmpData] = useState({ name: '', phone: '', role: '', salary: '0', status: 'ACTIVE', department: '', truckId: '' });
   const [attData, setAttData] = useState({ employeeId: '', type: 'CHECK_IN', note: '' });
   const [advData, setAdvData] = useState({ employeeId: '', amount: '0', note: '' });
+
+  const [currentTime, setCurrentTime] = useState(new Date());
+  const [selfAttNote, setSelfAttNote] = useState('');
+  const [selfEmployeeSelect, setSelfEmployeeSelect] = useState('');
+
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     const sub1 = database.get<Employee>('employees').query().observe().subscribe(setEmployees);
@@ -88,6 +115,33 @@ export default function HR() {
     toast.success(`Đã chấm công ${attData.type === 'CHECK_IN' ? 'vào ca' : 'ra ca'} cho "${empName}"`);
   };
 
+  const handleSelfAttendance = async (type: 'CHECK_IN' | 'CHECK_OUT') => {
+    const targetEmployeeId = user?.employeeId || selfEmployeeSelect;
+    if (!targetEmployeeId) {
+      toast.warning('Vui lòng chọn nhân viên để chấm công');
+      return;
+    }
+
+    const now = Date.now();
+    await database.write(async () => {
+      await database.get<Attendance>('attendance').create((a: any) => {
+        a._raw.id = generateId();
+        a.employeeId = targetEmployeeId;
+        a.date = now;
+        if (type === 'CHECK_IN') {
+          a.checkIn = now;
+        } else {
+          a.checkOut = now;
+        }
+        a.note = selfAttNote;
+      });
+    });
+
+    const empName = getEmployeeName(targetEmployeeId);
+    toast.success(`Đã chấm công ${type === 'CHECK_IN' ? 'vào ca' : 'ra ca'} thành công cho "${empName}"`);
+    setSelfAttNote('');
+  };
+
   const recordAdvance = async () => {
     const now = Date.now();
     const emp = employees.find((e: any) => e.id === advData.employeeId);
@@ -141,7 +195,118 @@ export default function HR() {
     return attendances.filter((a: any) => a.createdAt >= today.getTime());
   }, [attendances]);
 
+  const staffSelfLogs = useMemo(() => {
+    const targetId = user?.employeeId || selfEmployeeSelect;
+    if (!targetId) return [];
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return attendances
+      .filter((a: any) => a.employeeId === targetId && a.createdAt >= today.getTime())
+      .sort((a, b) => b.createdAt - a.createdAt);
+  }, [attendances, user, selfEmployeeSelect]);
+
   const totalAdvances = useMemo(() => advances.reduce((s: number, a: any) => s + parseFloat(a.amount || '0'), 0), [advances]);
+
+  if (!isAdminView) {
+    const matchedEmployee = employees.find((e: any) => e.id === user?.employeeId);
+    return (
+      <div className="max-w-2xl mx-auto space-y-6">
+        <div className="bg-white rounded-2xl p-6 shadow-md border border-surface-zen flex items-center space-x-4">
+          <div className="w-14 h-14 bg-primary/10 text-primary rounded-full flex items-center justify-center text-2xl font-bold">
+            {matchedEmployee?.name?.[0] || user?.displayName?.[0] || 'S'}
+          </div>
+          <div>
+            <h2 className="text-xl font-bold text-primary-dark">Xin chào, {matchedEmployee?.name || user?.displayName || 'Nhân viên'}!</h2>
+            <p className="text-sm text-text-secondary">{matchedEmployee?.role || 'Nhân sự cửa hàng'}</p>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-2xl p-8 shadow-lg border border-surface-zen space-y-6 text-center">
+          <div className="space-y-1">
+            <span className="text-xs font-bold text-accent tracking-widest uppercase">Thời gian thực tế</span>
+            <div className="text-4xl font-bold text-primary-dark font-mono">
+              {currentTime.toLocaleTimeString('vi-VN')}
+            </div>
+            <p className="text-sm text-text-secondary">{formatDate(currentTime.getTime())}</p>
+          </div>
+
+          {!user?.employeeId && (
+            <div className="max-w-sm mx-auto text-left">
+              <Select
+                label="Chọn tên của bạn"
+                value={selfEmployeeSelect}
+                onChange={(e: any) => setSelfEmployeeSelect(e.target.value)}
+                options={[{ value: '', label: '-- Chọn nhân viên --' }, ...employees.filter((e: any) => e.status === 'ACTIVE').map((e: any) => ({ value: e.id, label: e.name }))]}
+              />
+            </div>
+          )}
+
+          <div className="max-w-md mx-auto">
+            <input
+              type="text"
+              placeholder="Ghi chú ca làm việc (không bắt buộc)..."
+              value={selfAttNote}
+              onChange={(e: any) => setSelfAttNote(e.target.value)}
+              className="w-full px-4 py-3 bg-surface-zen border border-surface-zen rounded-xl outline-none text-sm text-text-main focus:ring-2 focus:ring-primary/20 bg-white"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4 max-w-md mx-auto">
+            <button
+              onClick={() => handleSelfAttendance('CHECK_IN')}
+              className="py-4 bg-green-600 hover:bg-green-700 text-white rounded-xl font-bold transition-all shadow-md hover:shadow-lg flex items-center justify-center space-x-2 cursor-pointer"
+            >
+              <LogIn size={20} />
+              <span>Vào ca làm việc</span>
+            </button>
+            <button
+              onClick={() => handleSelfAttendance('CHECK_OUT')}
+              className="py-4 bg-red-600 hover:bg-red-700 text-white rounded-xl font-bold transition-all shadow-md hover:shadow-lg flex items-center justify-center space-x-2 cursor-pointer"
+            >
+              <LogOut size={20} />
+              <span>Kết thúc ca</span>
+            </button>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-2xl shadow-md border border-surface-zen overflow-hidden">
+          <div className="p-4 border-b border-surface-zen bg-surface-zen/30">
+            <h3 className="font-bold text-primary-dark flex items-center space-x-2">
+              <CheckCircle2 className="text-success-zen" size={18} />
+              <span>Lịch sử chấm công hôm nay</span>
+            </h3>
+          </div>
+          <div className="divide-y divide-surface-zen">
+            {staffSelfLogs.map((log: any) => (
+              <div key={log.id} className="p-4 flex justify-between items-center hover:bg-surface-zen/20 transition-colors">
+                <div className="space-y-1">
+                  <div className="flex items-center space-x-2">
+                    <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
+                      log.checkIn && !log.checkOut ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                    }`}>
+                      {log.checkIn && !log.checkOut ? 'Vào ca' : 'Ra ca'}
+                    </span>
+                    <span className="text-sm font-medium font-mono text-text-main">
+                      {new Date(log.checkIn || log.checkOut || log.createdAt).toLocaleTimeString('vi-VN')}
+                    </span>
+                  </div>
+                  {log.note && <p className="text-xs text-text-secondary pl-1">Ghi chú: {log.note}</p>}
+                </div>
+                <span className="text-xs text-text-secondary">
+                  {formatDate(log.checkIn || log.checkOut || log.createdAt)}
+                </span>
+              </div>
+            ))}
+            {staffSelfLogs.length === 0 && (
+              <div className="text-center py-8 text-text-secondary/50 text-sm">
+                Bạn chưa ghi nhận ca làm việc nào hôm nay.
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -153,17 +318,17 @@ export default function HR() {
         </div>
         <div className="flex space-x-2">
           {activeTab === 'employees' && (
-            <button onClick={() => setShowAddEmployee(true)} className="px-4 py-2 bg-accent text-white rounded-lg text-sm font-medium hover:bg-primary-dark transition-all flex items-center space-x-1">
+            <button onClick={() => setShowAddEmployee(true)} className="px-4 py-2 bg-accent text-white rounded-lg text-sm font-medium hover:bg-primary-dark transition-all flex items-center space-x-1 cursor-pointer">
               <Plus size={16} /><span>Thêm nhân viên</span>
             </button>
           )}
           {activeTab === 'attendance' && (
-            <button onClick={() => setShowAttendance(true)} className="px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary-dark transition-all flex items-center space-x-1">
+            <button onClick={() => setShowAttendance(true)} className="px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary-dark transition-all flex items-center space-x-1 cursor-pointer">
               <Plus size={16} /><span>Chấm công</span>
             </button>
           )}
           {activeTab === 'advances' && (
-            <button onClick={() => setShowAdvance(true)} className="px-4 py-2 bg-accent text-white rounded-lg text-sm font-medium hover:bg-primary-dark transition-all flex items-center space-x-1">
+            <button onClick={() => setShowAdvance(true)} className="px-4 py-2 bg-accent text-white rounded-lg text-sm font-medium hover:bg-primary-dark transition-all flex items-center space-x-1 cursor-pointer">
               <Plus size={16} /><span>Tạm ứng</span>
             </button>
           )}
@@ -211,12 +376,12 @@ export default function HR() {
                       role: emp.role, salary: emp.salary, status: emp.status,
                       department: emp.department || '', truckId: emp.truckId || '',
                     })}
-                      className="p-1.5 text-text-secondary hover:text-primary hover:bg-primary/10 rounded-lg transition-all"
+                      className="p-1.5 text-text-secondary hover:text-primary hover:bg-primary/10 rounded-lg transition-all cursor-pointer"
                       title="Sửa">
                       <Edit3 size={14} />
                     </button>
                     <button onClick={() => deleteEmployee(emp.id, emp.name)}
-                      className="p-1.5 text-text-secondary hover:text-error-zen hover:bg-error-zen/10 rounded-lg transition-all"
+                      className="p-1.5 text-text-secondary hover:text-error-zen hover:bg-error-zen/10 rounded-lg transition-all cursor-pointer"
                       title="Xóa">
                       <Trash2 size={14} />
                     </button>
@@ -254,18 +419,18 @@ export default function HR() {
             <h3 className="font-bold text-primary-dark">Hôm nay ({formatDate(Date.now())})</h3>
             <p className="text-sm text-text-secondary">{todayAttendances.length} lượt chấm công</p>
           </div>
-          <table className="w-full">
+          <table className="w-full text-left">
             <thead className="bg-surface-zen">
               <tr>
-                <th className="text-left p-4 text-sm font-medium text-text-secondary">Nhân viên</th>
-                <th className="text-left p-4 text-sm font-medium text-text-secondary">Loại</th>
-                <th className="text-left p-4 text-sm font-medium text-text-secondary">Thời gian</th>
-                <th className="text-left p-4 text-sm font-medium text-text-secondary">Ghi chú</th>
+                <th className="p-4 text-sm font-medium text-text-secondary">Nhân viên</th>
+                <th className="p-4 text-sm font-medium text-text-secondary">Loại</th>
+                <th className="p-4 text-sm font-medium text-text-secondary">Thời gian</th>
+                <th className="p-4 text-sm font-medium text-text-secondary">Ghi chú</th>
               </tr>
             </thead>
             <tbody>
               {attendances.slice().reverse().map((a: any) => (
-                <tr key={a.id} className="border-t border-surface-zen hover:bg-surface-zen/50">
+                <tr key={a.id} className="border-t border-surface-zen hover:bg-surface-zen/50 transition-colors">
                   <td className="p-4 text-sm font-medium">{getEmployeeName(a.employeeId)}</td>
                   <td className="p-4">
                     <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${a.checkIn && !a.checkOut ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
@@ -289,18 +454,18 @@ export default function HR() {
             <StatCard icon={Users} label="Nhân viên đã tạm ứng" value={new Set(advances.map((a: any) => a.employeeId)).size.toString()} color="primary" />
           </div>
           <div className="bg-white rounded-xl shadow-sm border border-surface-zen overflow-hidden">
-            <table className="w-full">
+            <table className="w-full text-left">
               <thead className="bg-surface-zen">
                 <tr>
-                  <th className="text-left p-4 text-sm font-medium text-text-secondary">Nhân viên</th>
-                  <th className="text-left p-4 text-sm font-medium text-text-secondary">Ngày</th>
-                  <th className="text-right p-4 text-sm font-medium text-text-secondary">Số tiền</th>
-                  <th className="text-left p-4 text-sm font-medium text-text-secondary">Ghi chú</th>
+                  <th className="p-4 text-sm font-medium text-text-secondary">Nhân viên</th>
+                  <th className="p-4 text-sm font-medium text-text-secondary">Ngày</th>
+                  <th className="p-4 text-sm font-medium text-text-secondary text-right">Số tiền</th>
+                  <th className="p-4 text-sm font-medium text-text-secondary">Ghi chú</th>
                 </tr>
               </thead>
               <tbody>
                 {advances.slice().reverse().map((a: any) => (
-                  <tr key={a.id} className="border-t border-surface-zen hover:bg-surface-zen/50">
+                  <tr key={a.id} className="border-t border-surface-zen hover:bg-surface-zen/50 transition-colors">
                     <td className="p-4 text-sm font-medium">{a.employeeName || getEmployeeName(a.employeeId)}</td>
                     <td className="p-4 text-sm">{formatDateTime(a.createdAt)}</td>
                     <td className="p-4 text-sm text-right font-bold text-accent">{formatCurrency(parseFloat(a.amount))}</td>
@@ -326,7 +491,7 @@ export default function HR() {
               options={[{ value: '', label: '-- Không phân công --' }, ...trucks.filter((t: any) => t.status === 'ACTIVE').map((t: any) => ({ value: t.id, label: `${t.name} (${t.code})` }))]} />
             <Select label="Trạng thái" value={empData.status} onChange={(e: any) => setEmpData({ ...empData, status: e.target.value })}
               options={[{ value: 'ACTIVE', label: 'Đang làm' }, { value: 'INACTIVE', label: 'Đã nghỉ' }]} />
-            <button onClick={addEmployee} disabled={!empData.name} className="w-full py-3 bg-accent text-white rounded-xl font-medium hover:bg-primary-dark transition-all disabled:opacity-50">
+            <button onClick={addEmployee} disabled={!empData.name} className="w-full py-3 bg-accent text-white rounded-xl font-medium hover:bg-primary-dark transition-all disabled:opacity-50 cursor-pointer">
               Thêm nhân viên
             </button>
           </div>
@@ -340,16 +505,16 @@ export default function HR() {
               options={[{ value: '', label: '-- Chọn --' }, ...employees.filter((e: any) => e.status === 'ACTIVE').map((e: any) => ({ value: e.id, label: e.name }))]} />
             <div className="flex space-x-2">
               <button onClick={() => setAttData({ ...attData, type: 'CHECK_IN' })}
-                className={`flex-1 py-3 rounded-xl font-medium text-sm transition-all ${attData.type === 'CHECK_IN' ? 'bg-success-zen text-white' : 'bg-surface-zen text-text-secondary'}`}>
+                className={`flex-1 py-3 rounded-xl font-medium text-sm transition-all cursor-pointer ${attData.type === 'CHECK_IN' ? 'bg-success-zen text-white' : 'bg-surface-zen text-text-secondary'}`}>
                 <Clock size={16} className="inline mr-1" />Vào ca
               </button>
               <button onClick={() => setAttData({ ...attData, type: 'CHECK_OUT' })}
-                className={`flex-1 py-3 rounded-xl font-medium text-sm transition-all ${attData.type === 'CHECK_OUT' ? 'bg-error-zen text-white' : 'bg-surface-zen text-text-secondary'}`}>
+                className={`flex-1 py-3 rounded-xl font-medium text-sm transition-all cursor-pointer ${attData.type === 'CHECK_OUT' ? 'bg-error-zen text-white' : 'bg-surface-zen text-text-secondary'}`}>
                 <Clock size={16} className="inline mr-1" />Ra ca
               </button>
             </div>
             <Input label="Ghi chú" value={attData.note} onChange={(e: any) => setAttData({ ...attData, note: e.target.value })} placeholder="Ghi chú..." />
-            <button onClick={recordAttendance} disabled={!attData.employeeId} className="w-full py-3 bg-primary text-white rounded-xl font-medium hover:bg-primary-dark transition-all disabled:opacity-50">
+            <button onClick={recordAttendance} disabled={!attData.employeeId} className="w-full py-3 bg-primary text-white rounded-xl font-medium hover:bg-primary-dark transition-all disabled:opacity-50 cursor-pointer">
               Xác nhận chấm công
             </button>
           </div>
@@ -363,7 +528,7 @@ export default function HR() {
               options={[{ value: '', label: '-- Chọn --' }, ...employees.filter((e: any) => e.status === 'ACTIVE').map((e: any) => ({ value: e.id, label: e.name }))]} />
             <Input label="Số tiền" type="number" value={advData.amount} onChange={(e: any) => setAdvData({ ...advData, amount: e.target.value })} placeholder="0" />
             <Input label="Lý do" value={advData.note} onChange={(e: any) => setAdvData({ ...advData, note: e.target.value })} placeholder="Lý do tạm ứng..." />
-            <button onClick={recordAdvance} disabled={!advData.employeeId || !advData.amount} className="w-full py-3 bg-accent text-white rounded-xl font-medium hover:bg-primary-dark transition-all disabled:opacity-50">
+            <button onClick={recordAdvance} disabled={!advData.employeeId || !advData.amount} className="w-full py-3 bg-accent text-white rounded-xl font-medium hover:bg-primary-dark transition-all disabled:opacity-50 cursor-pointer">
               Xác nhận tạm ứng
             </button>
           </div>
@@ -383,7 +548,7 @@ export default function HR() {
             <Select label="Trạng thái" value={showEditEmployee.status} onChange={(e: any) => setShowEditEmployee({ ...showEditEmployee, status: e.target.value })}
               options={[{ value: 'ACTIVE', label: 'Đang làm' }, { value: 'INACTIVE', label: 'Đã nghỉ' }]} />
             <button onClick={updateEmployee} disabled={!showEditEmployee.name}
-              className="w-full py-3 bg-accent text-white rounded-xl font-medium hover:bg-primary-dark transition-all">
+              className="w-full py-3 bg-accent text-white rounded-xl font-medium hover:bg-primary-dark transition-all cursor-pointer">
               Cập nhật
             </button>
           </div>

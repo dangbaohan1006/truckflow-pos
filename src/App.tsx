@@ -200,14 +200,14 @@ function AppContent() {
   const accessibleModules = user ? getAccessibleModules(user.permissions) : [];
 
   const canAccessAdmin = accessibleModules.some(m => ['pos', 'inventory', 'reports', 'finance', 'settings'].includes(m.key));
-  const canAccessStaff = accessibleModules.some(m => ['customer-orders', 'hr'].includes(m.key));
+  const canAccessStaff = accessibleModules.some(m => ['pos', 'customer-orders', 'hr'].includes(m.key));
 
   // Filter modules based on whether we are in the Admin View or Staff View
   const viewModules = accessibleModules.filter((mod) => {
     if (isAdminView) {
       return ['pos', 'inventory', 'reports', 'finance', 'settings'].includes(mod.key);
     } else {
-      return ['customer-orders', 'hr'].includes(mod.key);
+      return ['pos', 'customer-orders', 'hr'].includes(mod.key);
     }
   });
 
