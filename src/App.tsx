@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   Store, Package, BarChart3, Settings, Wifi, WifiOff, Cloud, RefreshCw,
@@ -16,6 +16,38 @@ import HR from './modules/HR.js';
 import SettingsPage from './modules/Settings.js';
 import StaffOrders from './modules/StaffOrders.js';
 import { ToastProvider, useToast } from './shared/ToastContext.js';
+import { getUnreadNotifications } from './database/customerOrderApi.js';
+
+// Chime synthesizer function using Web Audio API (offline-friendly, 0 external assets)
+const playNotificationSound = () => {
+  try {
+    const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+    
+    const playTone = (freq: number, startTime: number, duration: number) => {
+      const osc = audioCtx.createOscillator();
+      const gainNode = audioCtx.createGain();
+      
+      osc.type = 'triangle'; // Soft, warm triangle wave
+      osc.frequency.setValueAtTime(freq, startTime);
+      
+      gainNode.gain.setValueAtTime(0, startTime);
+      gainNode.gain.linearRampToValueAtTime(0.25, startTime + 0.05); // Smooth attack
+      gainNode.gain.exponentialRampToValueAtTime(0.001, startTime + duration); // Smooth decay
+      
+      osc.connect(gainNode);
+      gainNode.connect(audioCtx.destination);
+      
+      osc.start(startTime);
+      osc.stop(startTime + duration);
+    };
+
+    const now = audioCtx.currentTime;
+    playTone(523.25, now, 0.4); // C5 tone
+    playTone(659.25, now + 0.12, 0.55); // E5 tone (arpeggio sound)
+  } catch (e) {
+    console.error('Audio chime failed:', e);
+  }
+};
 
 const ICON_MAP: Record<string, any> = {
   Store, Package, BarChart3, DollarSign, Users, Settings, ClipboardList,
@@ -42,6 +74,46 @@ function AppContent() {
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [syncing, setSyncing] = useState(false);
   const toast = useToast();
+
+  // Global customer order notifications polling
+  const [unreadCount, setUnreadCount] = useState(0);
+  const prevCountRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (!user) {
+      setUnreadCount(0);
+      prevCountRef.current = null;
+      return;
+    }
+
+    const checkNotifications = async () => {
+      try {
+        const notifs = await getUnreadNotifications();
+        const currentCount = notifs.length;
+        setUnreadCount(currentCount);
+
+        // If it's not the initial fetch and count increased, play a sound and show a toast alert
+        if (prevCountRef.current !== null && currentCount > prevCountRef.current) {
+          playNotificationSound();
+          
+          // Find the new notifications that were not in the previous set
+          const newNotifs = notifs.slice(0, currentCount - prevCountRef.current);
+          newNotifs.forEach((notif) => {
+            toast.info(notif.message, 6000);
+          });
+        }
+        prevCountRef.current = currentCount;
+      } catch (err) {
+        console.error('Failed to poll global notifications:', err);
+      }
+    };
+
+    // Run immediately
+    checkNotifications();
+
+    const interval = setInterval(checkNotifications, 6000); // Poll every 6 seconds
+    return () => clearInterval(interval);
+  }, [user, toast]);
 
   useEffect(() => {
     const handleOnline = () => setIsOnline(true);
@@ -166,6 +238,7 @@ function AppContent() {
                 label={mod.label}
                 active={activeModule === mod.key}
                 onClick={() => setActiveModule(mod.key)}
+                badge={mod.key === 'customer-orders' && unreadCount > 0 ? unreadCount : undefined}
               />
             );
           })}
