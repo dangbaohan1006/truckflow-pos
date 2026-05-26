@@ -19,6 +19,7 @@ import { useToast } from '../shared/ToastContext.js';
 import MenuItem from '../database/models/MenuItem.js';
 import MenuIngredient from '../database/models/MenuIngredient.js';
 import InventoryItem from '../database/models/InventoryItem.js';
+import { publishMenuToBackend } from '../database/sync.js';
 
 const getSavedUnits = (): string[] => {
   const saved = localStorage.getItem('truckflow_units');
@@ -38,6 +39,45 @@ const getSavedCategories = (): string[] => {
     } catch {}
   }
   return ['Đồ uống', 'Đồ ăn', 'Tráng miệng', 'Khác'];
+};
+
+const compressImage = (base64Str: string, maxWidth = 160, maxHeight = 160, quality = 0.7): Promise<string> => {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.src = base64Str;
+    img.onload = () => {
+      let width = img.width;
+      let height = img.height;
+
+      // Keep aspect ratio
+      if (width > height) {
+        if (width > maxWidth) {
+          height = Math.round((height * maxWidth) / width);
+          width = maxWidth;
+        }
+      } else {
+        if (height > maxHeight) {
+          width = Math.round((width * maxHeight) / height);
+          height = maxHeight;
+        }
+      }
+
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      } else {
+        resolve(base64Str);
+      }
+    };
+    img.onerror = () => {
+      resolve(base64Str);
+    };
+  });
 };
 
 export default function Settings() {
@@ -1035,6 +1075,7 @@ function MenuConfig({ units }: { units: string[] }) {
       setShowAddItem(false);
     }
     toast.success(`Đã thêm thành công món "${itemName}"${itemIngredientsCount > 0 ? ` (${itemIngredientsCount} nguyên liệu)` : ''}`);
+    publishMenuToBackend().catch(err => console.error("Auto-sync menu failed:", err));
   };
 
   const addBulkMenuItems = async () => {
@@ -1088,6 +1129,7 @@ function MenuConfig({ units }: { units: string[] }) {
       toast.success(`Đã thêm hàng loạt thành công ${parsedItems.length} món ăn vào thực đơn!`);
       setShowAddItem(false);
       setBulkText('');
+      publishMenuToBackend().catch(err => console.error("Auto-sync menu failed:", err));
     } catch (e: any) {
       toast.error('Có lỗi xảy ra khi lưu thực đơn: ' + e.message);
     }
@@ -1149,6 +1191,7 @@ function MenuConfig({ units }: { units: string[] }) {
     setShowEditItem(null);
     setEditPendingIngredients([]);
     toast.success(`Đã cập nhật món "${showEditItem.name}" và đồng bộ nguyên liệu thành công`);
+    publishMenuToBackend().catch(err => console.error("Auto-sync menu failed:", err));
   };
 
   const deleteMenuItem = async (id: string) => {
@@ -1164,6 +1207,7 @@ function MenuConfig({ units }: { units: string[] }) {
       }
     });
     toast.success('Đã xóa món khỏi menu');
+    publishMenuToBackend().catch(err => console.error("Auto-sync menu failed:", err));
   };
 
   const toggleActive = async (id: string, current: boolean) => {
@@ -1171,6 +1215,7 @@ function MenuConfig({ units }: { units: string[] }) {
       const record = await database.get<MenuItem>('menu_items').find(id);
       await record.update((m: any) => { m.isActive = !current; });
     });
+    publishMenuToBackend().catch(err => console.error("Auto-sync menu failed:", err));
   };
 
   const addIngredient = async () => {
@@ -1360,8 +1405,9 @@ function MenuConfig({ units }: { units: string[] }) {
                           const file = e.target.files?.[0];
                           if (file) {
                             const reader = new FileReader();
-                            reader.onloadend = () => {
-                              setItemForm({ ...itemForm, image: reader.result as string });
+                            reader.onloadend = async () => {
+                              const compressed = await compressImage(reader.result as string);
+                              setItemForm({ ...itemForm, image: compressed });
                             };
                             reader.readAsDataURL(file);
                           }
@@ -1578,8 +1624,9 @@ function MenuConfig({ units }: { units: string[] }) {
                       const file = e.target.files?.[0];
                       if (file) {
                         const reader = new FileReader();
-                        reader.onloadend = () => {
-                          setShowEditItem({ ...showEditItem, image: reader.result as string });
+                        reader.onloadend = async () => {
+                          const compressed = await compressImage(reader.result as string);
+                          setShowEditItem({ ...showEditItem, image: compressed });
                         };
                         reader.readAsDataURL(file);
                       }

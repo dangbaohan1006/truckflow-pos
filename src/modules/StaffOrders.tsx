@@ -1,4 +1,3 @@
-// Redeploy trigger: 2026-05-25 17:04
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { motion } from 'motion/react';
 import {
