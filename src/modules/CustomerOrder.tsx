@@ -108,7 +108,7 @@ export default function CustomerOrder() {
 
     async function fetchMenu() {
       try {
-        const response = await fetch(buildUrl('/api/customer-orders/menu'));
+        const response = await fetch(buildUrl('/api/customer-orders/menu', { _t: String(Date.now()) }));
         if (!response.ok) throw new Error('Failed to fetch menu from backend');
         const data = await response.json();
         if (isMounted) {
