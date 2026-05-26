@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import {
   Store, Package, BarChart3, Settings, Wifi, WifiOff, Cloud, RefreshCw,
   Wallet, Users, DollarSign, LogOut, Shield, User, ClipboardList,
-  ChevronLeft, ChevronRight } from 'lucide-react';
+  ChevronLeft, ChevronRight, Clock } from 'lucide-react';
 import { mySync, publishMenuToBackend } from './database/index.js';
 import { AuthProvider, useAuth } from './auth/AuthContext.js';
 import LoginScreen from './auth/LoginScreen.js';
@@ -50,7 +50,7 @@ const playNotificationSound = () => {
 };
 
 const ICON_MAP: Record<string, any> = {
-  Store, Package, BarChart3, DollarSign, Users, Settings, ClipboardList,
+  Store, Package, BarChart3, DollarSign, Users, Settings, ClipboardList, Clock,
 };
 
 const SidebarItem = ({ icon: Icon, label, active, onClick, badge }: any) => (
@@ -202,10 +202,9 @@ function AppContent() {
   const canAccessAdmin = accessibleModules.some(m => ['pos', 'inventory', 'reports', 'finance', 'settings'].includes(m.key));
   const canAccessStaff = accessibleModules.some(m => ['pos', 'customer-orders', 'hr'].includes(m.key));
 
-  // Filter modules based on whether we are in the Admin View or Staff View
   const viewModules = accessibleModules.filter((mod) => {
     if (isAdminView) {
-      return ['pos', 'inventory', 'reports', 'finance', 'settings'].includes(mod.key);
+      return ['pos', 'inventory', 'reports', 'finance', 'hr', 'settings'].includes(mod.key);
     } else {
       return ['pos', 'customer-orders', 'hr'].includes(mod.key);
     }
@@ -363,12 +362,15 @@ function AppContent() {
         {/* Navigation */}
         <div className="flex-1 p-4 space-y-1 overflow-y-auto">
           {filteredModules.map((mod) => {
-            const Icon = ICON_MAP[mod.icon] || Store;
+            const isHR = mod.key === 'hr';
+            const iconKey = isHR && !isAdminView ? 'Clock' : mod.icon;
+            const Icon = ICON_MAP[iconKey] || Store;
+            const label = isHR && !isAdminView ? 'Chấm công' : mod.label;
             return (
               <SidebarItem
                 key={mod.key}
                 icon={Icon}
-                label={mod.label}
+                label={label}
                 active={activeModule === mod.key}
                 onClick={() => setActiveModule(mod.key)}
                 badge={mod.key === 'customer-orders' && unreadCount > 0 ? unreadCount : undefined}
@@ -450,7 +452,7 @@ function AppContent() {
               {activeModule === 'inventory' && <Inventory />}
               {activeModule === 'reports' && <Reports />}
               {activeModule === 'finance' && <Finance />}
-              {activeModule === 'hr' && <HR />}
+              {activeModule === 'hr' && <HR isAdmin={isAdminView} />}
               {activeModule === 'customer-orders' && <StaffOrders />}
               {activeModule === 'settings' && <SettingsPage />}
             </motion.div>

@@ -14,7 +14,11 @@ import { Modal, Input, Select, StatCard, TabButton } from '../shared/components.
 import { useToast } from '../shared/ToastContext.js';
 import { useAuth } from '../auth/AuthContext.js';
 
-export default function HR() {
+interface HRProps {
+  isAdmin?: boolean;
+}
+
+export default function HR({ isAdmin }: HRProps) {
   const toast = useToast();
   const { user } = useAuth();
   const [employees, setEmployees] = useState<any[]>([]);
@@ -23,18 +27,20 @@ export default function HR() {
   const [trucks, setTrucks] = useState<any[]>([]);
 
   const isAdminView = useMemo(() => {
+    if (isAdmin !== undefined) return isAdmin;
     return (
       window.location.pathname.startsWith('/admin') ||
       window.location.hash.startsWith('#/admin') ||
       window.location.hash === '#admin'
     );
-  }, []);
+  }, [isAdmin]);
 
   const [activeTab, setActiveTab] = useState(() => {
-    const isCurrentAdmin =
+    const isCurrentAdmin = isAdmin !== undefined ? isAdmin : (
       window.location.pathname.startsWith('/admin') ||
       window.location.hash.startsWith('#/admin') ||
-      window.location.hash === '#admin';
+      window.location.hash === '#admin'
+    );
     return isCurrentAdmin ? 'employees' : 'attendance';
   });
 
