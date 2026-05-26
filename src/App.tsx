@@ -275,7 +275,7 @@ function AppContent() {
           <div id="mobile-logo-fallback" className="hidden w-8 h-8 bg-accent rounded-lg flex items-center justify-center shrink-0">
             <Store size={18} className="text-white" />
           </div>
-          <span className="font-bold text-primary-dark text-base">TruckFlow</span>
+          <span className="font-bold text-primary-dark text-base">Geta Oasis (Xe lưu động)</span>
         </div>
         
         <div className="flex items-center space-x-2">
@@ -341,8 +341,8 @@ function AppContent() {
               <Store size={22} className="text-white" />
             </div>
             <div>
-              <h1 className="font-bold text-primary-dark text-lg">TruckFlow</h1>
-              <p className="text-xs text-text-secondary">F&B Management</p>
+              <h1 className="font-bold text-primary-dark text-lg">Geta Oasis</h1>
+              <p className="text-xs text-text-secondary">Xe lưu động</p>
             </div>
           </div>
         </div>

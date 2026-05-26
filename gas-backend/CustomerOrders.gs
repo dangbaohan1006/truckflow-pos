@@ -22,9 +22,14 @@ function handleSyncMenu(body, headers) {
     return { error: 'Unauthorized', status: 401 };
   }
 
+  // Sync store_config if present
+  if (body.store_config) {
+    PropertiesService.getScriptProperties().setProperty('store_config', JSON.stringify(body.store_config));
+  }
+
   const menuItems = body.menu_items || [];
   if (menuItems.length === 0) {
-    return { success: true, message: 'Không có dữ liệu menu để đồng bộ', skipped: true };
+    return { success: true, message: 'Đồng bộ cấu hình cửa hàng thành công' };
   }
 
   const now = new Date().getTime();
@@ -65,11 +70,15 @@ function handleGetCustomerMenu() {
   // Return only active items
   const activeItems = allItems.filter(item => isTruthyValue_(item.is_active));
 
-  if (activeItems.length === 0) {
-    return getDefaultCustomerMenu_();
-  }
-  
-  return activeItems.map(item => ({
+  const storeConfigStr = PropertiesService.getScriptProperties().getProperty('store_config');
+  const store = storeConfigStr ? JSON.parse(storeConfigStr) : {
+    storeName: 'Geta Oasis',
+    storeAddress: 'Xe lưu động',
+    storePhone: '',
+    storeLogo: ''
+  };
+
+  const menu = activeItems.length === 0 ? getDefaultCustomerMenu_() : activeItems.map(item => ({
     id: item.id,
     name: item.name,
     price: parseFloat(item.price) || 0,
@@ -79,6 +88,11 @@ function handleGetCustomerMenu() {
     image: item.image || '',
     isActive: true,
   }));
+
+  return {
+    store: store,
+    menu: menu
+  };
 }
 
 function getDefaultCustomerMenu_() {

@@ -140,8 +140,8 @@ export default function Settings() {
   }, [activeTab]);
 
   const [config, setConfig] = useState({
-    storeName: 'TruckFlow POS',
-    storeAddress: '123 Đường ABC, Quận 1, TP.HCM',
+    storeName: 'Geta Oasis',
+    storeAddress: 'Xe lưu động',
     storePhone: '0123456789',
     taxRate: '10',
     currency: 'VND',
@@ -150,6 +150,7 @@ export default function Settings() {
     printerEnabled: true,
     printerType: 'escpos',
     lowStockThreshold: '10',
+    storeLogo: '',
   });
 
   const [printerCfg, setPrinterCfg] = useState({
@@ -207,6 +208,8 @@ export default function Settings() {
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
     toast.success('Đã lưu cấu hình');
+    // Sync store profile to backend instantly!
+    publishMenuToBackend().catch(err => console.error("Failed to sync store profile:", err));
   };
 
   const savePrinterConfig = () => {
@@ -219,7 +222,7 @@ export default function Settings() {
       const res = await fetch('/api/print', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ printer: printerCfg, lines: ['TEST PRINT', 'TruckFlow POS'] }),
+        body: JSON.stringify({ printer: printerCfg, lines: ['TEST PRINT', 'Geta Oasis'] }),
       });
       if (!res.ok) {
         const txt = await res.text();
@@ -407,6 +410,47 @@ export default function Settings() {
               <label className="text-sm text-text-secondary font-medium block mb-1">Ngưỡng tồn thấp</label>
               <input type="number" value={config.lowStockThreshold} onChange={(e: any) => setConfig({ ...config, lowStockThreshold: e.target.value })}
                 className="w-full px-4 py-2.5 border border-surface-zen rounded-lg focus:ring-2 focus:ring-primary/30 outline-none" />
+            </div>
+            
+            {/* Logo cửa hàng */}
+            <div className="col-span-2 space-y-1.5 p-3.5 bg-surface-zen/10 border border-surface-zen rounded-xl">
+              <label className="text-xs text-text-secondary font-semibold block">Logo cửa hàng (Geta Oasis)</label>
+              <div className="flex items-center space-x-4">
+                <div className="w-14 h-14 rounded-xl border border-surface-zen flex items-center justify-center bg-white overflow-hidden flex-shrink-0">
+                  {config.storeLogo ? (
+                    <img src={config.storeLogo} alt="Logo Preview" className="w-full h-full object-contain" />
+                  ) : (
+                    <span className="text-text-secondary text-[10px] text-center px-1 font-medium leading-tight">Chưa có Logo</span>
+                  )}
+                </div>
+                <div className="flex-1 flex flex-col space-y-1">
+                  <input type="file" accept="image/*" id="store-logo-upload" className="hidden"
+                    onChange={(e: any) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        const reader = new FileReader();
+                        reader.onloadend = async () => {
+                          const compressed = await compressImage(reader.result as string, 100, 100, 0.7);
+                          setConfig({ ...config, storeLogo: compressed });
+                        };
+                        reader.readAsDataURL(file);
+                      }
+                    }} />
+                  <div className="flex space-x-2">
+                    <label htmlFor="store-logo-upload"
+                      className="px-3 py-1.5 bg-primary/10 text-primary rounded-lg text-xs font-bold hover:bg-primary/20 transition-all cursor-pointer">
+                      Chọn Logo
+                    </label>
+                    {config.storeLogo && (
+                      <button onClick={() => setConfig({ ...config, storeLogo: '' })}
+                        className="px-3 py-1.5 bg-error-zen/10 text-error-zen rounded-lg text-xs font-bold hover:bg-error-zen/20 transition-all">
+                        Xóa Logo
+                      </button>
+                    )}
+                  </div>
+                  <p className="text-[10px] text-text-secondary">Tự động nén và đồng bộ lên trang Order của khách hàng.</p>
+                </div>
+              </div>
             </div>
           </div>
           <button onClick={saveConfig} className="px-6 py-3 bg-accent text-white rounded-xl font-medium hover:bg-primary-dark transition-all flex items-center space-x-2">
@@ -687,14 +731,14 @@ export default function Settings() {
             <div className="w-20 h-20 bg-primary/10 text-primary rounded-2xl flex items-center justify-center mx-auto mb-4">
               <SettingsIcon size={40} />
             </div>
-            <h2 className="text-2xl font-bold text-primary-dark">TruckFlow POS</h2>
-            <p className="text-text-secondary mt-2">Hệ thống quản lý bán hàng F&B</p>
+            <h2 className="text-2xl font-bold text-primary-dark">Geta Oasis</h2>
+            <p className="text-text-secondary mt-2">Hệ thống xe lưu động (Oasis)</p>
             <div className="mt-6 space-y-2 text-sm text-text-secondary">
               <p>Phiên bản: 1.0.0</p>
               <p>Nền tảng: Offline-first PWA</p>
               <p>Cơ sở dữ liệu: WatermelonDB + PostgreSQL</p>
               <p>Phân quyền: RBAC với 8 vai trò</p>
-              <p>© 2026 TruckFlow. All rights reserved.</p>
+              <p>© 2026 Geta Oasis. All rights reserved.</p>
             </div>
           </div>
         </div>

@@ -78,6 +78,15 @@ function getTableFromUrl(): string {
 
 export default function CustomerOrder() {
   const [menuItems, setMenuItems] = useState<any[]>([]);
+  const [storeInfo, setStoreInfo] = useState<any>(() => {
+    const cached = localStorage.getItem('truckflow_customer_store_cache');
+    return cached ? JSON.parse(cached) : {
+      storeName: 'Geta Oasis',
+      storeAddress: 'Xe lưu động',
+      storePhone: '',
+      storeLogo: ''
+    };
+  });
   const [cart, setCart] = useState<any[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
@@ -112,9 +121,19 @@ export default function CustomerOrder() {
         if (!response.ok) throw new Error('Failed to fetch menu from backend');
         const data = await response.json();
         if (isMounted) {
-          setMenuItems(data);
-          // Cache menu items for offline fallback
-          localStorage.setItem('truckflow_customer_menu_cache', JSON.stringify(data));
+          if (data && data.menu) {
+            setMenuItems(data.menu);
+            // Cache menu items for offline fallback
+            localStorage.setItem('truckflow_customer_menu_cache', JSON.stringify(data.menu));
+            if (data.store) {
+              setStoreInfo(data.store);
+              // Cache store info
+              localStorage.setItem('truckflow_customer_store_cache', JSON.stringify(data.store));
+            }
+          } else {
+            setMenuItems(data);
+            localStorage.setItem('truckflow_customer_menu_cache', JSON.stringify(data));
+          }
         }
       } catch (err) {
         console.error('Failed to load menu from backend, using current cache...', err);
@@ -542,17 +561,23 @@ export default function CustomerOrder() {
             <div style={{
               width: '38px',
               height: '38px',
-              background: `linear-gradient(135deg, ${colors.primary} 0%, ${colors.primaryDark} 100%)`,
+              background: storeInfo.storeLogo ? 'transparent' : `linear-gradient(135deg, ${colors.primary} 0%, ${colors.primaryDark} 100%)`,
               borderRadius: '12px',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              boxShadow: '0 4px 10px rgba(74, 93, 35, 0.15)'
+              boxShadow: '0 4px 10px rgba(74, 93, 35, 0.15)',
+              overflow: 'hidden',
+              border: storeInfo.storeLogo ? `1px solid rgba(142, 151, 117, 0.15)` : 'none'
             }}>
-              <Utensils size={18} color="#fff" />
+              {storeInfo.storeLogo ? (
+                <img src={storeInfo.storeLogo} alt={storeInfo.storeName} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+              ) : (
+                <Utensils size={18} color="#fff" />
+              )}
             </div>
             <div>
-              <div style={{ fontWeight: 800, fontSize: '16px', color: colors.primaryDark, lineHeight: 1.2, letterSpacing: '-0.5px' }}>TruckFlow</div>
+              <div style={{ fontWeight: 800, fontSize: '16px', color: colors.primaryDark, lineHeight: 1.2, letterSpacing: '-0.5px' }}>{storeInfo.storeName}</div>
               <div style={{ fontSize: '11px', color: colors.textSecondary, display: 'flex', alignItems: 'center', gap: '5px' }}>
                 <span style={{ fontWeight: 600, color: colors.textMain }}>{customerName}</span>
                 <span>•</span>

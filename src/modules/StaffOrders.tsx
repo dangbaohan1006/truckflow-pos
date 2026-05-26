@@ -339,7 +339,7 @@ export default function StaffOrders() {
           
           <div class="footer">
             <div class="bold">CẢM ƠN QUÝ KHÁCH!</div>
-            <div style="font-size: 9px; margin-top: 4px;">Hệ thống quản lý F&B TruckFlow</div>
+            <div style="font-size: 9px; margin-top: 4px;">Hệ thống quản lý xe lưu động Geta Oasis</div>
           </div>
         </body>
       </html>

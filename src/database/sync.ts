@@ -18,6 +18,10 @@ function buildAuthHeaders(): Record<string, string> {
 export async function publishMenuToBackend() {
   try {
     const menuItems = await database.get<MenuItem>('menu_items').query().fetch();
+    
+    const savedConfig = localStorage.getItem('truckflow_config');
+    const storeConfig = savedConfig ? JSON.parse(savedConfig) : null;
+
     const payload = {
       menu_items: menuItems.map(item => ({
         id: item.id,
@@ -28,7 +32,13 @@ export async function publishMenuToBackend() {
         default_discount: item.defaultDiscount || "0",
         is_active: item.isActive !== false,
         image: item.image || null,
-      }))
+      })),
+      store_config: storeConfig ? {
+        storeName: storeConfig.storeName || "Geta Oasis",
+        storeAddress: storeConfig.storeAddress || "Xe lưu động",
+        storePhone: storeConfig.storePhone || "",
+        storeLogo: storeConfig.storeLogo || "",
+      } : null
     };
 
     const syncUrl = buildUrl('/api/customer-orders/menu/sync');

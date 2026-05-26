@@ -41,8 +41,8 @@ export default function LoginScreen() {
               <Store size={32} className="text-white" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-primary-dark">TruckFlow POS</h1>
-              <p className="text-sm text-text-secondary">Hệ thống quản lý bán hàng F&B</p>
+              <h1 className="text-2xl font-bold text-primary-dark">Geta Oasis</h1>
+              <p className="text-sm text-text-secondary">Hệ thống quản lý bán hàng Xe lưu động</p>
             </div>
           </div>
 
