@@ -84,6 +84,37 @@ export default function Settings() {
   const toast = useToast();
   const { user: currentUser, hasPermission, isAdmin } = useAuth();
   const [activeTab, setActiveTab] = useState('general');
+
+  // Self-healing database migration: Automatically compress any historically oversized images
+  useEffect(() => {
+    async function compressExistingImages() {
+      try {
+        const items = await database.get<MenuItem>('menu_items').query().fetch();
+        let updatedCount = 0;
+        for (const item of items) {
+          if (item.image && item.image.startsWith('data:image/') && item.image.length > 50000) {
+            console.log(`Compressing oversized historical image for item: ${item.name} (${item.image.length} chars)`);
+            const compressed = await compressImage(item.image);
+            await database.write(async () => {
+              const record = await database.get<MenuItem>('menu_items').find(item.id);
+              await record.update((m: any) => {
+                m.image = compressed;
+              });
+            });
+            updatedCount++;
+          }
+        }
+        if (updatedCount > 0) {
+          toast.success(`Đã tự động tối ưu hóa và nén thành công ${updatedCount} ảnh sản phẩm dung lượng lớn dưới nền!`);
+          // Re-trigger sync to update the backend
+          publishMenuToBackend().catch(err => console.error("Background sync after self-healing failed:", err));
+        }
+      } catch (err) {
+        console.error('Failed to run self-healing image compression:', err);
+      }
+    }
+    compressExistingImages();
+  }, []);
   const [units, setUnits] = useState<string[]>(getSavedUnits);
   const [newUnit, setNewUnit] = useState('');
   const [saved, setSaved] = useState(false);
