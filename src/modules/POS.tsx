@@ -412,24 +412,74 @@ export default function POS() {
                 </button>
               ))}
             </div>
-            <div className="flex-1 overflow-y-auto min-h-0">
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                {filteredItems.map((item: any) => (
-                  <motion.button whileTap={{ scale: 0.95 }} key={item.id} onClick={() => addToCart(item)}
-                    className="p-4 bg-white rounded-xl shadow-sm border border-gray-200/50 flex flex-col items-center space-y-2 hover:shadow-md transition-all hover:border-primary/30 cursor-pointer">
-                    <div className="w-14 h-14 bg-primary/10 text-primary rounded-full flex items-center justify-center text-xl font-bold">
-                      <Utensils size={24} />
-                    </div>
-                    <span className="font-semibold text-text-main text-sm text-center">{item.name}</span>
-                    <span className="text-sm font-bold text-accent">{formatCurrency(parseFloat(item.price || '0'))}</span>
-                    {item.defaultDiscount && parseFloat(item.defaultDiscount) > 0 && (
-                      <span className="text-xs text-success-zen">Giảm {item.defaultDiscount}%</span>
-                    )}
-                  </motion.button>
-                ))}
+            <div className="flex-1 overflow-y-auto min-h-0 pr-1">
+              <div className="flex flex-col gap-3">
+                {filteredItems.map((item: any) => {
+                  const cartItem = cart.find((c: any) => c.menuItemId === item.id);
+                  const qty = cartItem?.qty || 0;
+                  return (
+                    <motion.button
+                      whileTap={{ scale: 0.98 }}
+                      key={item.id}
+                      onClick={() => addToCart(item)}
+                      className={`p-3.5 bg-white rounded-xl shadow-sm border text-left flex items-center gap-4 transition-all cursor-pointer ${
+                        qty > 0 
+                          ? 'border-primary ring-2 ring-primary/10 bg-primary/5' 
+                          : 'border-gray-200 hover:border-primary/30 hover:shadow-md'
+                      }`}
+                    >
+                      {/* Product Image / Fallback Thumbnail */}
+                      <div className="w-16 h-16 rounded-lg bg-surface-zen flex items-center justify-center overflow-hidden shrink-0 border border-surface-zen/50 shadow-inner">
+                        {item.image ? (
+                          <img src={item.image} alt={item.name} className="w-full h-full object-cover" />
+                        ) : (
+                          <div className="w-full h-full bg-primary/5 flex items-center justify-center text-primary">
+                            <Utensils size={24} />
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Item Details */}
+                      <div className="flex-1 min-w-0 flex flex-col justify-center">
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-text-main text-base truncate">{item.name}</span>
+                          {qty > 0 && (
+                            <span className="bg-primary text-white text-xs font-black px-2 py-0.5 rounded-full shrink-0">
+                              x{qty}
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2 mt-1">
+                          <span className="text-[11px] bg-surface-zen/50 text-text-secondary px-2.5 py-0.5 rounded-full font-semibold border border-surface-zen">
+                            {item.category || 'Món chính'}
+                          </span>
+                          {item.unit && (
+                            <span className="text-[10px] text-text-secondary">
+                              Đơn vị: {item.unit}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Pricing and Action */}
+                      <div className="text-right flex flex-col items-end gap-1.5 shrink-0 pl-2">
+                        <span className="text-base font-extrabold text-accent">
+                          {formatCurrency(parseFloat(item.price || '0'))}
+                        </span>
+                        {item.defaultDiscount && parseFloat(item.defaultDiscount) > 0 ? (
+                          <span className="text-[10px] bg-success-zen/15 text-success-zen px-2 py-0.5 rounded font-black border border-success-zen/10">
+                            Giảm {item.defaultDiscount}%
+                          </span>
+                        ) : (
+                          <span className="text-[10px] text-text-secondary/60 font-medium">Bấm để thêm</span>
+                        )}
+                      </div>
+                    </motion.button>
+                  );
+                })}
                 {filteredItems.length === 0 && (
-                  <div className="col-span-2 sm:col-span-3 lg:col-span-3 xl:col-span-4 text-center py-12 text-gray-400">
-                    {searchTerm ? 'Không tìm thấy món' : 'Chưa có món nào trong menu'}
+                  <div className="text-center py-16 bg-white rounded-xl border border-surface-zen text-text-secondary/50">
+                    {searchTerm ? 'Không tìm thấy món phù hợp' : 'Chưa có món nào trong thực đơn'}
                   </div>
                 )}
               </div>
