@@ -389,16 +389,22 @@ export default function CustomerOrder() {
             <div style={{
               width: '68px',
               height: '68px',
-              background: `linear-gradient(135deg, ${colors.primary} 0%, ${colors.primaryDark} 100%)`,
+              background: storeInfo.storeLogo ? 'transparent' : `linear-gradient(135deg, ${colors.primary} 0%, ${colors.primaryDark} 100%)`,
               borderRadius: '20px',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               margin: '0 auto 16px',
               boxShadow: '0 8px 20px rgba(74, 93, 35, 0.25)',
-              position: 'relative'
+              position: 'relative',
+              overflow: 'hidden',
+              border: storeInfo.storeLogo ? `2px solid rgba(142, 151, 117, 0.15)` : 'none'
             }}>
-              <Utensils size={32} color="#fff" />
+              {storeInfo.storeLogo ? (
+                <img src={storeInfo.storeLogo} alt={storeInfo.storeName} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+              ) : (
+                <Utensils size={32} color="#fff" />
+              )}
               {/* Pulsing dot indicator */}
               <span style={{
                 position: 'absolute',
