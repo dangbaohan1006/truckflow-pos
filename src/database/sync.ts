@@ -20,7 +20,12 @@ export async function publishMenuToBackend() {
     const menuItems = await database.get<MenuItem>('menu_items').query().fetch();
     
     const savedConfig = localStorage.getItem('truckflow_config');
-    const storeConfig = savedConfig ? JSON.parse(savedConfig) : null;
+    const storeConfig = savedConfig ? JSON.parse(savedConfig) : {
+      storeName: "Geta Oasis",
+      storeAddress: "Xe lưu động",
+      storePhone: "0123456789",
+      storeLogo: "",
+    };
 
     const payload = {
       menu_items: menuItems.map(item => ({
@@ -33,12 +38,12 @@ export async function publishMenuToBackend() {
         is_active: item.isActive !== false,
         image: item.image || null,
       })),
-      store_config: storeConfig ? {
+      store_config: {
         storeName: storeConfig.storeName || "Geta Oasis",
         storeAddress: storeConfig.storeAddress || "Xe lưu động",
         storePhone: storeConfig.storePhone || "",
         storeLogo: storeConfig.storeLogo || "",
-      } : null
+      }
     };
 
     const syncUrl = buildUrl('/api/customer-orders/menu/sync');
