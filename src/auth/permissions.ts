@@ -82,9 +82,21 @@ export const ROLES = {
   STAFF: 'STAFF',
 } as const;
 
-export type Role = (typeof ROLES)[keyof typeof ROLES];
+export type Role = string;
 
-export const ROLE_LABELS: Record<Role, string> = {
+// Standard role constants for references
+export const STANDARD_ROLES = {
+  SYSTEM_ADMIN: 'SYSTEM_ADMIN',
+  STORE_MANAGER: 'STORE_MANAGER',
+  CASHIER: 'CASHIER',
+  WAREHOUSE: 'WAREHOUSE',
+  HR: 'HR',
+  ACCOUNTANT: 'ACCOUNTANT',
+  REPORT_VIEWER: 'REPORT_VIEWER',
+  STAFF: 'STAFF',
+} as const;
+
+export const STANDARD_ROLE_LABELS: Record<string, string> = {
   SYSTEM_ADMIN: 'System Admin',
   STORE_MANAGER: 'Quản lý cửa hàng',
   CASHIER: 'Thu ngân',
@@ -95,8 +107,9 @@ export const ROLE_LABELS: Record<Role, string> = {
   STAFF: 'Người dùng thường',
 };
 
-// ===== Role -> Permission Mapping =====
-export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
+export const ROLE_LABELS: Record<string, string> = { ...STANDARD_ROLE_LABELS };
+
+const STANDARD_ROLE_PERMISSIONS: Record<string, Permission[]> = {
   // System Admin: full access
   SYSTEM_ADMIN: Object.values(PERMISSIONS),
 
@@ -214,6 +227,50 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     PERMISSIONS.INV_VIEW,
   ],
 };
+
+export const ROLE_PERMISSIONS: Record<string, Permission[]> = { ...STANDARD_ROLE_PERMISSIONS };
+
+/**
+ * Refreshes dynamic roles from local storage to allow runtime custom roles/permissions
+ */
+export function refreshDynamicRoles() {
+  try {
+    const savedConfig = localStorage.getItem('truckflow_config');
+    if (savedConfig) {
+      const parsed = JSON.parse(savedConfig);
+      if (parsed) {
+        // 1. Reset to standard
+        Object.keys(ROLE_LABELS).forEach(key => {
+          if (!(key in STANDARD_ROLE_LABELS)) {
+            delete ROLE_LABELS[key];
+          }
+        });
+        Object.keys(ROLE_PERMISSIONS).forEach(key => {
+          if (!(key in STANDARD_ROLE_PERMISSIONS)) {
+            delete ROLE_PERMISSIONS[key];
+          }
+        });
+
+        // 2. Load custom role labels
+        if (parsed.customRoles && typeof parsed.customRoles === 'object') {
+          Object.assign(ROLE_LABELS, parsed.customRoles);
+        }
+
+        // 3. Load custom role permissions
+        if (parsed.customRolePermissions && typeof parsed.customRolePermissions === 'object') {
+          Object.assign(ROLE_PERMISSIONS, parsed.customRolePermissions);
+        }
+      }
+    }
+  } catch (e) {
+    console.error('Failed to refresh dynamic roles:', e);
+  }
+}
+
+// Auto-run on load in browser environments
+if (typeof window !== 'undefined') {
+  refreshDynamicRoles();
+}
 
 // ===== Module access based on permissions =====
 export interface ModuleAccess {

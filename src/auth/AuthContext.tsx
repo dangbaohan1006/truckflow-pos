@@ -77,12 +77,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Helper: Convert UserProfile from API to AuthUser
   // ---------------------------------------------------------------------------
   const profileToAuthUser = useCallback((profile: UserProfile): AuthUser => {
+    const role = profile.role;
+    const dynamicPerms = ROLE_PERMISSIONS[role] || (profile.permissions as Permission[]) || [];
     return {
       id: profile.id,
       username: profile.username,
       displayName: profile.display_name,
-      role: profile.role as Role,
-      permissions: profile.permissions as Permission[],
+      role: role as Role,
+      permissions: dynamicPerms as Permission[],
       employeeId: profile.employee_id,
       moduleAccess: profile.module_access,
     };

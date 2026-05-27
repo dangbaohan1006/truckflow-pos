@@ -12,7 +12,7 @@ import { seedTestData } from '../database/seedTestData.js';
 import { seedMaterialsReportData } from '../database/seedMaterialsReport.js';
 import { useAuth } from '../auth/AuthContext.js';
 import { logActivity, getActivityLogs, clearActivityLogs, type ActivityRecord } from '../shared/activityLogger.js';
-import { ROLES, ROLE_LABELS, PERMISSIONS, MODULE_ACCESS, type Role, type Permission } from '../auth/permissions.js';
+import { ROLES, ROLE_LABELS, ROLE_PERMISSIONS, PERMISSIONS, MODULE_ACCESS, type Role, type Permission, refreshDynamicRoles, STANDARD_ROLES, STANDARD_ROLE_LABELS } from '../auth/permissions.js';
 import { TabButton, Modal, Input, Select } from '../shared/components.js';
 import { generateId } from '../shared/utils.js';
 import { useToast } from '../shared/ToastContext.js';
@@ -127,6 +127,121 @@ export default function Settings() {
   const [activities, setActivities] = useState<ActivityRecord[]>([]);
   const [activitySearchTerm, setActivitySearchTerm] = useState('');
   const [activityRoleFilter, setActivityRoleFilter] = useState('all');
+
+  const [customRoles, setCustomRoles] = useState<any[]>(() => {
+    try {
+      const saved = localStorage.getItem('truckflow_config');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed && parsed.customRolesList) {
+          return parsed.customRolesList;
+        }
+      }
+    } catch {}
+    return [];
+  });
+
+  const [showAddRole, setShowAddRole] = useState(false);
+  const [showEditRole, setShowEditRole] = useState<any>(null);
+  const [roleForm, setRoleForm] = useState({
+    key: '',
+    label: '',
+    modules: {
+      pos: 'none',
+      inventory: 'none',
+      reports: 'none',
+      finance: 'none',
+      hr: 'none',
+      'customer-orders': 'none',
+      settings: 'none',
+    } as Record<string, string>,
+  });
+
+  const saveCustomRoles = (updatedRoles: any[]) => {
+    try {
+      const saved = localStorage.getItem('truckflow_config');
+      const parsed = saved ? JSON.parse(saved) : {};
+      
+      // 1. Build labels map { ROLE_KEY: "Label" }
+      const customRolesMap: Record<string, string> = {};
+      updatedRoles.forEach(r => {
+        customRolesMap[r.key] = r.label;
+      });
+      
+      // 2. Build permissions map { ROLE_KEY: ["perm1", "perm2"] }
+      const customRolePermissions: Record<string, string[]> = {};
+      updatedRoles.forEach(r => {
+        const perms: string[] = [];
+        
+        // POS / Sales
+        if (r.modules.pos === 'read') {
+          perms.push(PERMISSIONS.SALES_VIEW);
+        } else if (r.modules.pos === 'edit') {
+          perms.push(PERMISSIONS.SALES_CREATE, PERMISSIONS.SALES_EDIT, PERMISSIONS.SALES_PAYMENT, PERMISSIONS.SALES_PRINT, PERMISSIONS.SALES_VIEW, PERMISSIONS.SALES_VIEW_ALL);
+        }
+        
+        // Inventory
+        if (r.modules.inventory === 'read') {
+          perms.push(PERMISSIONS.INV_VIEW);
+        } else if (r.modules.inventory === 'edit') {
+          perms.push(PERMISSIONS.INV_RECEIVE, PERMISSIONS.INV_ISSUE, PERMISSIONS.INV_COUNT, PERMISSIONS.INV_ADJUST, PERMISSIONS.INV_SPOILAGE, PERMISSIONS.INV_APPROVE, PERMISSIONS.INV_VIEW, PERMISSIONS.INV_BOM, PERMISSIONS.INV_SUPPLIER, PERMISSIONS.INV_TRUCK, PERMISSIONS.SETTINGS_INGREDIENT);
+        }
+        
+        // Reports
+        if (r.modules.reports === 'read') {
+          perms.push(PERMISSIONS.REPORT_VIEW);
+        } else if (r.modules.reports === 'edit') {
+          perms.push(PERMISSIONS.REPORT_VIEW, PERMISSIONS.REPORT_EXPORT);
+        }
+        
+        // Finance
+        if (r.modules.finance === 'read') {
+          perms.push(PERMISSIONS.FIN_VIEW);
+        } else if (r.modules.finance === 'edit') {
+          perms.push(PERMISSIONS.FIN_INCOME, PERMISSIONS.FIN_EXPENSE, PERMISSIONS.FIN_APPROVE, PERMISSIONS.FIN_BOOK, PERMISSIONS.FIN_LOCK, PERMISSIONS.FIN_VIEW);
+        }
+        
+        // HR
+        if (r.modules.hr === 'read') {
+          perms.push(PERMISSIONS.HR_VIEW);
+        } else if (r.modules.hr === 'edit') {
+          perms.push(PERMISSIONS.HR_EMPLOYEE, PERMISSIONS.HR_ATTENDANCE, PERMISSIONS.HR_ADVANCE, PERMISSIONS.HR_SALARY, PERMISSIONS.HR_APPROVE_SALARY, PERMISSIONS.HR_VIEW);
+        }
+        
+        // Customer Orders
+        if (r.modules['customer-orders'] === 'read') {
+          perms.push(PERMISSIONS.ORDER_VIEW);
+        } else if (r.modules['customer-orders'] === 'edit') {
+          perms.push(PERMISSIONS.ORDER_VIEW, PERMISSIONS.ORDER_CONFIRM, PERMISSIONS.ORDER_EDIT, PERMISSIONS.ORDER_CANCEL);
+        }
+        
+        // Settings
+        if (r.modules.settings === 'edit') {
+          perms.push(PERMISSIONS.SETTINGS_STORE, PERMISSIONS.SETTINGS_PRINTER, PERMISSIONS.SETTINGS_SYNC, PERMISSIONS.SETTINGS_TEMPLATE, PERMISSIONS.USER_VIEW, PERMISSIONS.USER_CREATE, PERMISSIONS.USER_EDIT, PERMISSIONS.USER_DELETE, PERMISSIONS.USER_ASSIGN_ROLE);
+        }
+        
+        customRolePermissions[r.key] = perms;
+      });
+      
+      parsed.customRolesList = updatedRoles;
+      parsed.customRoles = customRolesMap;
+      parsed.customRolePermissions = customRolePermissions;
+      
+      localStorage.setItem('truckflow_config', JSON.stringify(parsed));
+      setCustomRoles(updatedRoles);
+      
+      // Update memory immediately
+      refreshDynamicRoles();
+      
+      // Also publish to backend
+      publishMenuToBackend().catch(err => console.error('Failed to sync updated config:', err));
+      
+      toast.success('Cập nhật vai trò & quyền hạn thành công!');
+    } catch (e) {
+      console.error('Failed to save custom roles:', e);
+      toast.error('Không thể lưu cấu hình vai trò!');
+    }
+  };
 
   const loadActivities = async () => {
     const logs = await getActivityLogs();
@@ -360,6 +475,7 @@ export default function Settings() {
     { key: 'ingredients', label: 'Nguyên liệu', show: isAdmin || hasPermission(PERMISSIONS.SETTINGS_INGREDIENT) },
     { key: 'units', label: 'Đơn vị', show: isAdmin || hasPermission(PERMISSIONS.SETTINGS_INGREDIENT) },
     { key: 'users', label: 'Người dùng', show: canManageUsers || hasPermission(PERMISSIONS.USER_VIEW) },
+    { key: 'roles', label: 'Vai trò & Quyền', show: isAdmin || hasPermission(PERMISSIONS.USER_ASSIGN_ROLE) },
     { key: 'activities', label: 'Lịch sử hoạt động', show: isAdmin },
     { key: 'sync', label: 'Đồng bộ', show: hasPermission(PERMISSIONS.SETTINGS_SYNC) || isAdmin },
     { key: 'printer', label: 'Máy in', show: hasPermission(PERMISSIONS.SETTINGS_PRINTER) || isAdmin },
@@ -722,6 +838,321 @@ export default function Settings() {
           <button onClick={saveConfig} className="px-6 py-3 bg-accent text-white rounded-xl font-medium hover:bg-primary-dark transition-all flex items-center space-x-2">
             {saved ? <><Check size={18} /><span>Đã lưu</span></> : <><Save size={18} /><span>Lưu cấu hình</span></>}
           </button>
+        </div>
+      )}
+
+      {activeTab === 'roles' && (
+        <div className="space-y-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="font-bold text-primary-dark text-lg">Quản lý vai trò & Phân quyền</h3>
+              <p className="text-sm text-text-secondary">Định nghĩa vai trò và cấu hình quyền hạn chi tiết cho từng tab chức năng.</p>
+            </div>
+            {isAdmin && (
+              <button
+                onClick={() => {
+                  setRoleForm({
+                    key: '',
+                    label: '',
+                    modules: {
+                      pos: 'none',
+                      inventory: 'none',
+                      reports: 'none',
+                      finance: 'none',
+                      hr: 'none',
+                      'customer-orders': 'none',
+                      settings: 'none',
+                    }
+                  });
+                  setShowAddRole(true);
+                }}
+                className="px-4 py-2.5 bg-accent text-white rounded-lg text-sm font-medium hover:bg-primary-dark transition-all flex items-center space-x-1"
+              >
+                <Plus size={16} /><span>Thêm vai trò</span>
+              </button>
+            )}
+          </div>
+
+          <div className="bg-white rounded-xl shadow-sm border border-surface-zen overflow-hidden">
+            <table className="w-full">
+              <thead className="bg-surface-zen">
+                <tr>
+                  <th className="text-left p-4 text-sm font-medium text-text-secondary">Vai trò</th>
+                  <th className="text-left p-4 text-sm font-medium text-text-secondary">Loại vai trò</th>
+                  <th className="text-left p-4 text-sm font-medium text-text-secondary">Quyền truy cập các tab</th>
+                  {isAdmin && <th className="text-right p-4 text-sm font-medium text-text-secondary">Thao tác</th>}
+                </tr>
+              </thead>
+              <tbody>
+                {/* 1. Standard Roles */}
+                {Object.entries(STANDARD_ROLE_LABELS).map(([key, label]) => {
+                  return (
+                    <tr key={key} className="border-t border-surface-zen hover:bg-surface-zen/50">
+                      <td className="p-4 font-medium text-sm text-primary-dark">{label}</td>
+                      <td className="p-4">
+                        <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-600 border border-slate-200">
+                          Hệ thống (Khóa)
+                        </span>
+                      </td>
+                      <td className="p-4 text-xs text-text-secondary max-w-sm">
+                        <div className="flex flex-wrap gap-1">
+                          {key === 'SYSTEM_ADMIN' ? (
+                            <span className="px-1.5 py-0.5 rounded bg-primary/10 text-primary">Toàn bộ hệ thống</span>
+                          ) : (
+                            MODULE_ACCESS.map(mod => {
+                              const required = mod.requiredPermissions;
+                              const userPerms = ROLE_PERMISSIONS[key] || [];
+                              const hasEdit = required.some(p => userPerms.includes(p.replace(':view', ':create') as any) || userPerms.includes(p.replace(':view', ':edit') as any));
+                              const hasRead = required.some(p => userPerms.includes(p));
+                              if (hasEdit) {
+                                return <span key={mod.key} className="px-1.5 py-0.5 rounded bg-green-50 text-green-700 border border-green-150">{mod.label} (Edit)</span>;
+                              } else if (hasRead) {
+                                return <span key={mod.key} className="px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-150">{mod.label} (Xem)</span>;
+                              }
+                              return null;
+                            })
+                          )}
+                        </div>
+                      </td>
+                      {isAdmin && <td className="p-4 text-right text-xs text-gray-400 font-medium italic">-</td>}
+                    </tr>
+                  );
+                })}
+
+                {/* 2. Custom Roles */}
+                {customRoles.map((role: any) => (
+                  <tr key={role.key} className="border-t border-surface-zen hover:bg-surface-zen/50">
+                    <td className="p-4 font-medium text-sm text-primary-dark">{role.label}</td>
+                    <td className="p-4">
+                      <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary border border-primary/20">
+                        Tùy chỉnh
+                      </span>
+                    </td>
+                    <td className="p-4 text-xs text-text-secondary max-w-sm">
+                      <div className="flex flex-wrap gap-1">
+                        {Object.entries(role.modules).map(([modKey, level]) => {
+                          const label = MODULE_ACCESS.find(m => m.key === modKey)?.label || modKey;
+                          if (level === 'edit') {
+                            return <span key={modKey} className="px-1.5 py-0.5 rounded bg-green-50 text-green-700 border border-green-150">{label} (Edit)</span>;
+                          } else if (level === 'read') {
+                            return <span key={modKey} className="px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-150">{label} (Xem)</span>;
+                          }
+                          return null;
+                        })}
+                      </div>
+                    </td>
+                    {isAdmin && (
+                      <td className="p-4 text-right">
+                        <div className="flex items-center justify-end space-x-1">
+                          <button
+                            onClick={() => {
+                              setShowEditRole(role);
+                              setRoleForm({
+                                key: role.key,
+                                label: role.label,
+                                modules: { ...role.modules }
+                              });
+                            }}
+                            className="p-2 text-text-secondary hover:text-primary hover:bg-primary/10 rounded-lg transition-all"
+                            title="Sửa quyền"
+                          >
+                            <Edit3 size={15} />
+                          </button>
+                          <button
+                            onClick={() => {
+                              if (confirm(`Bạn có chắc chắn muốn xóa vai trò "${role.label}" không?`)) {
+                                const remaining = customRoles.filter(r => r.key !== role.key);
+                                saveCustomRoles(remaining);
+                              }
+                            }}
+                            className="p-2 text-text-secondary hover:text-error-zen hover:bg-error-zen/10 rounded-lg transition-all"
+                            title="Xóa vai trò"
+                          >
+                            <Trash2 size={15} />
+                          </button>
+                        </div>
+                      </td>
+                    )}
+                  </tr>
+                ))}
+                
+                {customRoles.length === 0 && (
+                  <tr>
+                    <td colSpan={isAdmin ? 4 : 3} className="text-center py-6 text-sm text-text-secondary italic bg-slate-50/50">
+                      Chưa có vai trò tùy chỉnh nào được tạo. Nhấn "Thêm vai trò" ở trên để tạo mới.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Add Role Modal */}
+          {showAddRole && (
+            <Modal title="Thêm vai trò tùy chỉnh" onClose={() => setShowAddRole(false)}>
+              <div className="space-y-4">
+                <div>
+                  <label className="text-sm font-medium text-text-secondary block mb-1">Tên vai trò <span className="text-error-zen">*</span></label>
+                  <input
+                    type="text"
+                    value={roleForm.label}
+                    onChange={(e: any) => {
+                      const label = e.target.value;
+                      const key = 'CUSTOM_' + label.toUpperCase()
+                        .normalize('NFD')
+                        .replace(/[\u0300-\u036f]/g, '') // strip vietnamese accents
+                        .replace(/[^A-Z0-9]/g, '_')
+                        .substring(0, 15);
+                      setRoleForm({ ...roleForm, label, key });
+                    }}
+                    placeholder="VD: Tổ trưởng, Phục vụ ca tối..."
+                    className="w-full px-4 py-2.5 border border-surface-zen rounded-lg focus:ring-2 focus:ring-primary/30 outline-none"
+                  />
+                </div>
+                
+                <div>
+                  <label className="text-sm font-medium text-text-secondary block mb-1">Mã vai trò (Tự động)</label>
+                  <input
+                    type="text"
+                    value={roleForm.key}
+                    disabled
+                    className="w-full px-4 py-2.5 border border-surface-zen bg-slate-50 rounded-lg text-text-secondary cursor-not-allowed font-mono text-xs"
+                  />
+                </div>
+
+                <div className="border border-surface-zen rounded-xl overflow-hidden mt-4">
+                  <table className="w-full text-sm text-primary-dark">
+                    <thead className="bg-slate-50 border-b border-surface-zen">
+                      <tr>
+                        <th className="text-left p-3 font-semibold text-text-secondary">Chức năng (Tab)</th>
+                        <th className="text-left p-3 font-semibold text-text-secondary">Quyền hạn truy cập</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {MODULE_ACCESS.map(mod => (
+                        <tr key={mod.key} className="border-b border-surface-zen hover:bg-slate-50/50">
+                          <td className="p-3 font-medium">{mod.label}</td>
+                          <td className="p-3">
+                            <select
+                              value={roleForm.modules[mod.key] || 'none'}
+                              onChange={(e: any) => {
+                                const updatedModules = { ...roleForm.modules, [mod.key]: e.target.value };
+                                setRoleForm({ ...roleForm, modules: updatedModules });
+                              }}
+                              className="px-3 py-1.5 border border-surface-zen rounded-lg outline-none text-sm bg-white"
+                            >
+                              <option value="none">Không có quyền (None)</option>
+                              <option value="read">Chỉ xem (Read-only)</option>
+                              <option value="edit">Toàn quyền (Edit)</option>
+                            </select>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                <div className="flex space-x-2 justify-end mt-6">
+                  <button
+                    onClick={() => setShowAddRole(false)}
+                    className="px-4 py-2.5 border border-surface-zen text-text-secondary rounded-lg font-medium hover:bg-slate-50"
+                  >
+                    Hủy
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (!roleForm.label.trim()) {
+                        toast.error('Vui lòng nhập tên vai trò!');
+                        return;
+                      }
+                      if (customRoles.some(r => r.key === roleForm.key)) {
+                        toast.error('Mã vai trò đã tồn tại hoặc tên vai trò trùng lặp!');
+                        return;
+                      }
+                      const updated = [...customRoles, { key: roleForm.key, label: roleForm.label, modules: roleForm.modules }];
+                      saveCustomRoles(updated);
+                      setShowAddRole(false);
+                    }}
+                    className="px-5 py-2.5 bg-accent text-white rounded-lg font-medium hover:bg-primary-dark"
+                  >
+                    Thêm vai trò
+                  </button>
+                </div>
+              </div>
+            </Modal>
+          )}
+
+          {/* Edit Role Modal */}
+          {showEditRole && (
+            <Modal title={`Chỉnh sửa vai trò: ${showEditRole.label}`} onClose={() => setShowEditRole(null)}>
+              <div className="space-y-4">
+                <div>
+                  <label className="text-sm font-medium text-text-secondary block mb-1">Tên vai trò</label>
+                  <input
+                    type="text"
+                    value={roleForm.label}
+                    onChange={(e: any) => setRoleForm({ ...roleForm, label: e.target.value })}
+                    className="w-full px-4 py-2.5 border border-surface-zen rounded-lg focus:ring-2 focus:ring-primary/30 outline-none"
+                  />
+                </div>
+
+                <div className="border border-surface-zen rounded-xl overflow-hidden mt-4">
+                  <table className="w-full text-sm text-primary-dark">
+                    <thead className="bg-slate-50 border-b border-surface-zen">
+                      <tr>
+                        <th className="text-left p-3 font-semibold text-text-secondary">Chức năng (Tab)</th>
+                        <th className="text-left p-3 font-semibold text-text-secondary">Quyền hạn truy cập</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {MODULE_ACCESS.map(mod => (
+                        <tr key={mod.key} className="border-b border-surface-zen hover:bg-slate-50/50">
+                          <td className="p-3 font-medium">{mod.label}</td>
+                          <td className="p-3">
+                            <select
+                              value={roleForm.modules[mod.key] || 'none'}
+                              onChange={(e: any) => {
+                                const updatedModules = { ...roleForm.modules, [mod.key]: e.target.value };
+                                setRoleForm({ ...roleForm, modules: updatedModules });
+                              }}
+                              className="px-3 py-1.5 border border-surface-zen rounded-lg outline-none text-sm bg-white"
+                            >
+                              <option value="none">Không có quyền (None)</option>
+                              <option value="read">Chỉ xem (Read-only)</option>
+                              <option value="edit">Toàn quyền (Edit)</option>
+                            </select>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                <div className="flex space-x-2 justify-end mt-6">
+                  <button
+                    onClick={() => setShowEditRole(null)}
+                    className="px-4 py-2.5 border border-surface-zen text-text-secondary rounded-lg font-medium hover:bg-slate-50"
+                  >
+                    Hủy
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (!roleForm.label.trim()) {
+                        toast.error('Vui lòng nhập tên vai trò!');
+                        return;
+                      }
+                      const updated = customRoles.map(r => r.key === showEditRole.key ? { ...r, label: roleForm.label, modules: roleForm.modules } : r);
+                      saveCustomRoles(updated);
+                      setShowEditRole(null);
+                    }}
+                    className="px-5 py-2.5 bg-accent text-white rounded-lg font-medium hover:bg-primary-dark"
+                  >
+                    Lưu thay đổi
+                  </button>
+                </div>
+              </div>
+            </Modal>
+          )}
         </div>
       )}
 
