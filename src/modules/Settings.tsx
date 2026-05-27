@@ -899,7 +899,7 @@ export default function Settings() {
                           {key === 'SYSTEM_ADMIN' ? (
                             <span className="px-1.5 py-0.5 rounded bg-primary/10 text-primary">Toàn bộ hệ thống</span>
                           ) : (
-                            MODULE_ACCESS.map(mod => {
+                            MODULE_ACCESS.filter(mod => mod.key !== 'customer-orders').map(mod => {
                               const required = mod.requiredPermissions;
                               const userPerms = ROLE_PERMISSIONS[key] || [];
                               const hasEdit = required.some(p => userPerms.includes(p.replace(':view', ':create') as any) || userPerms.includes(p.replace(':view', ':edit') as any));
@@ -1029,7 +1029,7 @@ export default function Settings() {
                       </tr>
                     </thead>
                     <tbody>
-                      {MODULE_ACCESS.map(mod => (
+                      {MODULE_ACCESS.filter(mod => mod.key !== 'customer-orders').map(mod => (
                         <tr key={mod.key} className="border-b border-surface-zen hover:bg-slate-50/50">
                           <td className="p-3 font-medium">{mod.label}</td>
                           <td className="p-3">
@@ -1105,7 +1105,7 @@ export default function Settings() {
                       </tr>
                     </thead>
                     <tbody>
-                      {MODULE_ACCESS.map(mod => (
+                      {MODULE_ACCESS.filter(mod => mod.key !== 'customer-orders').map(mod => (
                         <tr key={mod.key} className="border-b border-surface-zen hover:bg-slate-50/50">
                           <td className="p-3 font-medium">{mod.label}</td>
                           <td className="p-3">
@@ -1312,7 +1312,7 @@ export default function Settings() {
                   <p className="text-sm font-medium text-text-secondary mb-2">Quyền truy cập menu:</p>
                   <p className="text-xs text-text-secondary mb-3">Chọn các tab mà nhân viên này được phép xem</p>
                   <div className="space-y-2">
-                    {MODULE_ACCESS.map((mod) => {
+                    {MODULE_ACCESS.filter(mod => mod.key !== 'customer-orders').map((mod) => {
                       const selectedModules: string[] = JSON.parse(userForm.moduleAccess || '[]');
                       const isSelected = selectedModules.includes(mod.key);
                       return (
@@ -1384,7 +1384,7 @@ export default function Settings() {
                   <p className="text-sm font-medium text-text-secondary mb-2">Quyền truy cập menu:</p>
                   <p className="text-xs text-text-secondary mb-3">Chọn các tab mà nhân viên này được phép xem</p>
                   <div className="space-y-2">
-                    {MODULE_ACCESS.map((mod) => {
+                    {MODULE_ACCESS.filter(mod => mod.key !== 'customer-orders').map((mod) => {
                       const selectedModules: string[] = JSON.parse(showEditUser.moduleAccess || '[]');
                       const isSelected = selectedModules.includes(mod.key);
                       return (
