@@ -54,8 +54,7 @@ export async function publishMenuToBackend() {
               storeLogo: pullData.store.storeLogo || "",
             }));
           }
-          // Reload window to instantly update all UI screens
-          window.location.reload();
+          console.log('Successfully populated local menu items database. Reactively updating UI...');
           return;
         }
       }
