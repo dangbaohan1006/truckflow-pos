@@ -142,6 +142,15 @@ export async function syncProvider() {
     console.error('Error synchronizing users with backend:', err);
   }
 
+  // Also sync inventory, shifts, transactions, employees, attendance, and advances
+  try {
+    console.log('Syncing inventory, transactions, and HR with backend...');
+    const { inventorySyncProvider } = await import('./inventorySync.js');
+    await inventorySyncProvider();
+  } catch (err) {
+    console.error('Error synchronizing inventory with backend:', err);
+  }
+
   // Also publish menu to backend when sync is run
   await publishMenuToBackend();
 }
