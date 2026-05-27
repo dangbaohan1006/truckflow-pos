@@ -282,7 +282,7 @@ export default function Settings() {
     username: '',
     password: '',
     displayName: '',
-    role: 'STAFF' as Role,
+    role: 'SYSTEM_ADMIN' as Role,
     status: 'ACTIVE',
     employeeId: '',
     moduleAccess: '[]' as string, // JSON array of module keys
@@ -412,7 +412,7 @@ export default function Settings() {
       });
     });
     setShowAddUser(false);
-    setUserForm({ username: '', password: '', displayName: '', role: 'STAFF', status: 'ACTIVE', employeeId: '', moduleAccess: '[]' });
+    setUserForm({ username: '', password: '', displayName: '', role: 'SYSTEM_ADMIN', status: 'ACTIVE', employeeId: '', moduleAccess: '[]' });
     toast.success(`Đã thêm người dùng "${userForm.displayName || userForm.username}"`);
   };
 
@@ -1291,12 +1291,12 @@ export default function Settings() {
             <Select label="Vai trò" value={userForm.role}
               onChange={(e: any) => {
                 const newRole = e.target.value;
-                setUserForm({ ...userForm, role: newRole, moduleAccess: newRole === 'STAFF' ? userForm.moduleAccess : '[]' });
+                setUserForm({ ...userForm, role: newRole, moduleAccess: newRole !== 'SYSTEM_ADMIN' ? userForm.moduleAccess : '[]' });
               }}
               options={Object.entries(ROLE_LABELS).map(([value, label]) => ({ value, label }))} />
 
-            {/* Employee matching - only for STAFF role */}
-            {userForm.role === 'STAFF' && (
+            {/* Employee matching - only for non-admin roles */}
+            {userForm.role !== 'SYSTEM_ADMIN' && (
               <>
                 <Select label="Ghép với nhân viên" value={userForm.employeeId}
                   onChange={(e: any) => setUserForm({ ...userForm, employeeId: e.target.value })}
@@ -1367,8 +1367,8 @@ export default function Settings() {
               onChange={(e: any) => setShowEditUser({ ...showEditUser, status: e.target.value })}
               options={[{ value: 'ACTIVE', label: 'Hoạt động' }, { value: 'INACTIVE', label: 'Đã khóa' }]} />
 
-            {/* Employee matching - only for STAFF role */}
-            {showEditUser.role === 'STAFF' && (
+            {/* Employee matching - only for non-admin roles */}
+            {showEditUser.role !== 'SYSTEM_ADMIN' && (
               <>
                 <Select label="Ghép với nhân viên" value={showEditUser.employeeId}
                   onChange={(e: any) => setShowEditUser({ ...showEditUser, employeeId: e.target.value })}
