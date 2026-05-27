@@ -45,6 +45,10 @@ function doGet(e) {
         result = handleUserPull(params, headers);
         break;
         
+      case '/api/sync/batch':
+        result = handleBatchPull(params, headers);
+        break;
+        
       case '/api/health':
         result = { status: 'ok', timestamp: new Date().toISOString() };
         break;
@@ -145,6 +149,10 @@ function doPost(e) {
 
       case '/api/users/sync':
         result = handleUserSync(body, headers);
+        break;
+        
+      case '/api/sync/batch':
+        result = handleBatchPush(body, headers);
         break;
         
       case '/api/inventory/receive':

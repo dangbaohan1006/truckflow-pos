@@ -345,3 +345,128 @@ function handleUserPull(params, headers) {
     timestamp: now,
   };
 }
+
+/**
+ * GET /api/sync/batch
+ * Consolidated batch pull for Sales, Users, and Inventory to optimize performance.
+ */
+function handleBatchPull(params, headers) {
+  const session = validateSession_(headers);
+  if (!session) {
+    return { error: 'Unauthorized', status: 401 };
+  }
+  
+  const lastPulledAt = parseInt(params.lastPulledAt) || 0;
+  const now = new Date().getTime();
+  
+  // 1. Pull Sales
+  let salesPull = { changes: {} };
+  try {
+    salesPull = handleSalesPull({ lastPulledAt: lastPulledAt }, headers);
+  } catch (e) {
+    Logger.log('Sales pull failed in batch: ' + e.toString());
+  }
+  
+  // 2. Pull Users
+  let usersPull = { changes: {} };
+  try {
+    usersPull = handleUserPull({ lastPulledAt: lastPulledAt }, headers);
+  } catch (e) {
+    Logger.log('Users pull failed in batch: ' + e.toString());
+  }
+  
+  // 3. Pull Inventory (contains inventory_items, stock_movements, shift, employee, advance, attendance, transactions)
+  let inventoryPull = { changes: {} };
+  try {
+    inventoryPull = handlePullSync({ lastPulledAt: lastPulledAt }, headers);
+  } catch (e) {
+    Logger.log('Inventory pull failed in batch: ' + e.toString());
+  }
+  
+  // 4. Merge all changes into a single WatermelonDB changes object
+  const mergedChanges = {};
+  
+  // Helper to merge changes securely
+  function mergeTables(target, source) {
+    if (!source) return;
+    Object.keys(source).forEach(table => {
+      if (!target[table]) {
+        target[table] = { created: [], updated: [], deleted: [] };
+      }
+      const tTable = target[table];
+      const sTable = source[table];
+      if (sTable.created) tTable.created.push.apply(tTable.created, sTable.created);
+      if (sTable.updated) tTable.updated.push.apply(tTable.updated, sTable.updated);
+      if (sTable.deleted) tTable.deleted.push.apply(tTable.deleted, sTable.deleted);
+    });
+  }
+  
+  mergeTables(mergedChanges, salesPull.changes);
+  mergeTables(mergedChanges, usersPull.changes);
+  mergeTables(mergedChanges, inventoryPull.changes);
+  
+  // Translate backend table names to local WatermelonDB schema
+  mergedChanges.pos_order = mergedChanges.orders || { created: [], updated: [], deleted: [] };
+  mergedChanges.pos_order_line = mergedChanges.order_lines || { created: [], updated: [], deleted: [] };
+  delete mergedChanges.orders;
+  delete mergedChanges.order_lines;
+  
+  return {
+    changes: mergedChanges,
+    timestamp: now
+  };
+}
+
+/**
+ * POST /api/sync/batch
+ * Consolidated batch push for Sales, Users, and Inventory to optimize performance.
+ */
+function handleBatchPush(body, headers) {
+  const session = validateSession_(headers);
+  if (!session) {
+    return { error: 'Unauthorized', status: 401 };
+  }
+  
+  const changes = body.changes || {};
+  const errors = [];
+  
+  // Translate local WatermelonDB schema to backend table names
+  const mappedChanges = {};
+  Object.keys(changes).forEach(table => {
+    mappedChanges[table] = changes[table];
+  });
+  
+  mappedChanges.orders = changes.pos_order || { created: [], updated: [], deleted: [] };
+  mappedChanges.order_lines = changes.pos_order_line || { created: [], updated: [], deleted: [] };
+  delete mappedChanges.pos_order;
+  delete mappedChanges.pos_order_line;
+  
+  // 1. Push Sales
+  try {
+    const res = handleSalesSync({ changes: mappedChanges }, headers);
+    if (res && res.errors) errors.push.apply(errors, res.errors);
+  } catch (e) {
+    errors.push('Sales push failed: ' + e.toString());
+  }
+  
+  // 2. Push Users
+  try {
+    const res = handleUserSync({ changes: mappedChanges }, headers);
+    if (res && res.errors) errors.push.apply(errors, res.errors);
+  } catch (e) {
+    errors.push('Users push failed: ' + e.toString());
+  }
+  
+  // 3. Push Inventory
+  try {
+    const res = handlePushSync({ changes: mappedChanges }, headers);
+    if (res && res.errors) errors.push.apply(errors, res.errors);
+  } catch (e) {
+    errors.push('Inventory push failed: ' + e.toString());
+  }
+  
+  return {
+    success: true,
+    errors: errors.length > 0 ? errors : undefined
+  };
+}
