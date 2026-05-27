@@ -19,6 +19,48 @@ export async function publishMenuToBackend() {
   try {
     const menuItems = await database.get<MenuItem>('menu_items').query().fetch();
     
+    // If local menu database is empty, pull all items from Google Sheets instead of pushing empty payload
+    if (menuItems.length === 0) {
+      console.log('Local menu database is empty. Pulling menu from backend sheets...');
+      const pullUrl = buildUrl('/api/customer-orders/menu', { all: 'true' });
+      const pullResponse = await fetch(pullUrl, {
+        headers: buildAuthHeaders(),
+      });
+      if (pullResponse.ok) {
+        const pullData = await pullResponse.json();
+        if (pullData && Array.isArray(pullData.menu) && pullData.menu.length > 0) {
+          console.log(`Pulled ${pullData.menu.length} menu items from backend. Syncing to local DB...`);
+          await database.write(async () => {
+            for (const item of pullData.menu) {
+              await database.get<MenuItem>('menu_items').create((m: any) => {
+                m._raw.id = item.id;
+                m.name = item.name;
+                m.price = String(item.price);
+                m.category = item.category;
+                m.unit = item.unit || "";
+                m.defaultDiscount = item.defaultDiscount || "0";
+                m.isActive = item.isActive !== false;
+                m.image = item.image || "";
+              });
+            }
+          });
+          console.log('Successfully populated local menu items database.');
+          
+          if (pullData.store) {
+            localStorage.setItem('truckflow_config', JSON.stringify({
+              storeName: pullData.store.storeName || "Geta Oasis",
+              storeAddress: pullData.store.storeAddress || "Xe lưu động",
+              storePhone: pullData.store.storePhone || "",
+              storeLogo: pullData.store.storeLogo || "",
+            }));
+          }
+          // Reload window to instantly update all UI screens
+          window.location.reload();
+          return;
+        }
+      }
+    }
+
     const savedConfig = localStorage.getItem('truckflow_config');
     const storeConfig = savedConfig ? JSON.parse(savedConfig) : {
       storeName: "Geta Oasis",

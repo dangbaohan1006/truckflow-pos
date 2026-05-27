@@ -50,7 +50,7 @@ function doGet(e) {
         break;
 
       case '/api/customer-orders/menu':
-        result = handleGetCustomerMenu();
+        result = handleGetCustomerMenu(params);
         break;
         
       case '/api/customer-orders/pending':

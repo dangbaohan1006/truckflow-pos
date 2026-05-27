@@ -65,10 +65,11 @@ function handleSyncMenu(body, headers) {
 /**
  * GET /api/customer-orders/menu
  */
-function handleGetCustomerMenu() {
+function handleGetCustomerMenu(params) {
   const allItems = sheetGetAll(SHEETS.MENU_ITEMS);
-  // Return only active items
-  const activeItems = allItems.filter(item => isTruthyValue_(item.is_active));
+  const showAll = params && (params.all === 'true' || params.all === true);
+  // Return only active items unless all=true is specified
+  const filteredItems = showAll ? allItems : allItems.filter(item => isTruthyValue_(item.is_active));
 
   const storeConfigStr = PropertiesService.getScriptProperties().getProperty('store_config');
   const store = storeConfigStr ? JSON.parse(storeConfigStr) : {
@@ -78,7 +79,7 @@ function handleGetCustomerMenu() {
     storeLogo: ''
   };
 
-  const menu = activeItems.length === 0 ? getDefaultCustomerMenu_() : activeItems.map(item => ({
+  const menu = filteredItems.length === 0 ? getDefaultCustomerMenu_() : filteredItems.map(item => ({
     id: item.id,
     name: item.name,
     price: parseFloat(item.price) || 0,
@@ -86,7 +87,7 @@ function handleGetCustomerMenu() {
     unit: item.unit || '',
     defaultDiscount: item.default_discount || '0',
     image: item.image || '',
-    isActive: true,
+    isActive: isTruthyValue_(item.is_active),
   }));
 
   return {
