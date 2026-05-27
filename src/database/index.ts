@@ -25,6 +25,26 @@ const adapter = new LokiJSAdapter({
   migrations,
   useWebWorker: false,
   useIncrementalIndexedDB: true,
+  onSetUpError: (error) => {
+    console.error('WatermelonDB local setup error (likely schema mismatch or missing migration):', error);
+    try {
+      console.warn('Attempting to delete local database to allow fresh schema recreation...');
+      const dbRequest = window.indexedDB.deleteDatabase('watermelon');
+      dbRequest.onsuccess = () => {
+        console.log('Database deleted successfully. Reloading page...');
+        window.location.reload();
+      };
+      dbRequest.onerror = () => {
+        console.warn('Failed to delete indexedDB database, clearing localStorage as fallback...');
+        localStorage.clear();
+        window.location.reload();
+      };
+    } catch (e) {
+      console.error('Emergency fallback: clearing localStorage and reloading:', e);
+      localStorage.clear();
+      window.location.reload();
+    }
+  }
 });
 
 export const database = new Database({
